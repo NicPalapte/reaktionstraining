@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d1b24">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Reaktion">
+  <title>Reaktionstraining</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ======================= Start ======================= -->
+<main id="screen-home" class="screen" data-tab="home">
+  <header class="page-head">
+    <h1>Reaktionstraining</h1>
+    <p class="lede">Das Gerät steht vor dir und erkennt, wann du bereit bist und wann du losläufst.</p>
+  </header>
+
+  <button class="tile" id="start-shuffle" type="button">
+    <svg class="court" viewBox="0 0 240 90" aria-hidden="true">
+      <rect x="4" y="4" width="232" height="82" rx="6" class="court-bg"/>
+      <line x1="60" y1="4" x2="60" y2="86"/>
+      <line x1="120" y1="4" x2="120" y2="86" class="mid"/>
+      <line x1="180" y1="4" x2="180" y2="86"/>
+      <path d="M120 45 H66 M72 40 L64 45 L72 50" class="run"/>
+      <path d="M66 62 H174 M168 57 L176 62 L168 67" class="run"/>
+      <path d="M174 76 H126 M132 71 L124 76 L132 81" class="run"/>
+    </svg>
+    <span class="tile-body">
+      <span class="tile-title">5-10-5 Shuffle</span>
+      <span class="tile-text">Pfeil erscheint, du sprintest los. Reaktionszeit und Laufzeit werden gemessen.</span>
+      <span class="tile-meta" id="meta-shuffle"></span>
+    </span>
+  </button>
+
+  <button class="tile" id="start-commands" type="button">
+    <svg class="court" viewBox="0 0 240 90" aria-hidden="true">
+      <rect x="4" y="4" width="232" height="82" rx="6" class="court-bg"/>
+      <circle cx="120" cy="45" r="5" class="dot"/>
+      <path d="M112 45 H56 M62 39 L54 45 L62 51" class="run"/>
+      <path d="M128 45 H184 M178 39 L186 45 L178 51" class="run"/>
+      <path d="M120 37 V14 M114 20 L120 12 L126 20" class="run"/>
+    </svg>
+    <span class="tile-body">
+      <span class="tile-title">Richtungsbefehle</span>
+      <span class="tile-text">Links, rechts oder vorne. Der nächste Befehl kommt, sobald du wieder bereit stehst.</span>
+      <span class="tile-meta" id="meta-commands"></span>
+    </span>
+  </button>
+
+  <details class="setup">
+    <summary>Aufbau</summary>
+    <ul>
+      <li>Gerät auf Hüfthöhe stellen, Bildschirm zu dir, am besten im Querformat.</li>
+      <li>4 bis 6 m Abstand zur Mittellinie. Du musst auch an den äußeren Linien noch ganz im Bild sein.</li>
+      <li>Bildschirm bleibt während der Übung an. Das Gerät nicht sperren.</li>
+      <li>Gute Beleuchtung, nicht gegen die Sonne filmen.</li>
+    </ul>
+  </details>
+</main>
+
+<!-- ======================= Verlauf ======================= -->
+<main id="screen-history" class="screen" data-tab="history" hidden>
+  <header class="page-head"><h1>Verlauf</h1></header>
+
+  <div class="seg" role="tablist" aria-label="Übung">
+    <button type="button" role="tab" class="on" data-ex="shuffle_5_10_5">5-10-5</button>
+    <button type="button" role="tab" data-ex="commands">Befehle</button>
+  </div>
+
+  <section id="hist-shuffle">
+    <div class="stats" id="hist-stats"></div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Verlauf</h2>
+        <div class="seg small" id="metric-seg">
+          <button type="button" class="on" data-metric="run_ms">Laufzeit</button>
+          <button type="button" data-metric="reaction_ms">Reaktion</button>
+        </div>
+      </div>
+      <canvas id="hist-chart" aria-label="Verlauf der gültigen Durchgänge" role="img"></canvas>
+      <div class="tip" id="hist-tip" hidden></div>
+      <div class="legend"><span><i class="lg-dot"></i>Durchgang</span><span><i class="lg-line"></i>Ø der letzten 5</span><span class="muted">Kleiner ist besser</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Sätze</h2>
+      <div id="hist-days" class="rows"></div>
+    </div>
+  </section>
+
+  <section id="hist-commands" hidden>
+    <div class="card">
+      <h2>Einheiten</h2>
+      <div id="hist-cmd-list" class="rows"></div>
+    </div>
+  </section>
+
+  <div class="row-actions">
+    <button type="button" class="btn ghost" id="btn-export">Als CSV exportieren</button>
+    <button type="button" class="btn ghost danger" id="btn-delete">Alles löschen</button>
+  </div>
+  <p class="foot" id="store-note"></p>
+</main>
+
+<!-- ======================= Einstellungen ======================= -->
+<main id="screen-settings" class="screen" data-tab="settings" hidden>
+  <header class="page-head"><h1>Einstellungen</h1></header>
+
+  <div class="card form">
+    <label class="field switch"><span>Ton beim Signal</span><input type="checkbox" data-key="sound"></label>
+    <label class="field switch"><span>Befehle ansagen</span><input type="checkbox" data-key="voice"></label>
+  </div>
+
+  <div class="card form">
+    <h2>5-10-5</h2>
+    <label class="field"><span>Durchgänge pro Satz</span><input type="number" min="1" max="30" inputmode="numeric" data-key="rounds"></label>
+    <label class="field"><span>Pfeil frühestens nach (s)</span><input type="number" min="0.5" max="8" step="0.5" inputmode="decimal" data-key="minDelay"></label>
+    <label class="field"><span>Pfeil spätestens nach (s)</span><input type="number" min="1" max="10" step="0.5" inputmode="decimal" data-key="maxDelay"></label>
+    <label class="field col"><span>Wendepunkt gilt ab <b id="turn-label"></b> des Wegs zur Linie</span><input type="range" min="0.5" max="0.95" step="0.05" data-key="turnThreshold"></label>
+    <p class="hint">Wird die Linie mit der Hand berührt, ist die Körpermitte noch etwas davor. 70 % passt meistens.</p>
+  </div>
+
+  <div class="card form">
+    <h2>Befehle</h2>
+    <label class="field"><span>Befehle pro Satz</span><input type="number" min="1" max="60" inputmode="numeric" data-key="commandRounds"></label>
+    <label class="field switch"><span>Links</span><input type="checkbox" data-key="cmdLeft"></label>
+    <label class="field switch"><span>Rechts</span><input type="checkbox" data-key="cmdRight"></label>
+    <label class="field switch"><span>Vorne</span><input type="checkbox" data-key="cmdFront"></label>
+  </div>
+
+  <div class="card form">
+    <h2>Kalibrierung</h2>
+    <p class="hint" id="cal-info">Noch keine gespeichert.</p>
+    <button type="button" class="btn ghost" id="btn-forget-cal">Gespeicherte Kalibrierung löschen</button>
+  </div>
+  <p class="foot">Alle Daten liegen nur auf diesem Gerät. Die Kamerabilder werden nicht übertragen.</p>
+</main>
+
+<!-- ======================= Training ======================= -->
+<main id="screen-session" class="screen" hidden>
+  <div class="stage">
+    <div class="frame" id="frame">
+      <video id="cam" playsinline muted></video>
+      <canvas id="overlay"></canvas>
+    </div>
+  </div>
+
+  <div class="hud" id="hud" data-mode="">
+    <div class="hud-top">
+      <button type="button" class="icon-btn" id="btn-stop" aria-label="Übung beenden">✕</button>
+      <div class="hud-count" id="hud-count"></div>
+    </div>
+    <div class="hud-center">
+      <div class="hud-big" id="hud-big"></div>
+      <div class="hud-sub" id="hud-sub"></div>
+      <div class="meter" id="cal-meter" hidden><i id="cal-bar"></i></div>
+      <div class="steps" id="cal-steps" hidden></div>
+      <button type="button" class="btn small" id="btn-use-cal" hidden>Letzte Kalibrierung verwenden</button>
+    </div>
+  </div>
+
+  <div class="signal" id="signal" hidden aria-live="assertive">
+    <svg id="signal-arrow" viewBox="0 0 100 100" aria-hidden="true"><path d="M8 50 H78 M52 20 L84 50 L52 80" /></svg>
+    <div class="signal-label" id="signal-label"></div>
+  </div>
+
+  <div class="result" id="result" hidden>
+    <div class="result-label" id="result-label">Laufzeit</div>
+    <div class="result-main" id="result-main"></div>
+    <div class="result-grid" id="result-grid"></div>
+    <div class="result-tag" id="result-tag" hidden></div>
+  </div>
+
+  <div class="overlay-card" id="summary" hidden>
+    <div class="card">
+      <h2 id="summary-title">Satz beendet</h2>
+      <div class="stats" id="summary-stats"></div>
+      <div class="row-actions">
+        <button type="button" class="btn primary" id="btn-again">Noch ein Satz</button>
+        <button type="button" class="btn ghost" id="btn-done">Fertig</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay-card" id="loading" hidden>
+    <div class="card">
+      <h2 id="loading-title">Wird geladen</h2>
+      <p id="loading-text" class="hint"></p>
+      <div class="row-actions" id="loading-actions" hidden>
+        <button type="button" class="btn ghost" id="btn-error-back">Zurück</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sim" id="sim" hidden>
+    <b>Simulation</b>
+    <label>Position <input type="range" id="sim-u" min="-1.4" max="1.4" step="0.01" value="0"></label>
+    <label><input type="checkbox" id="sim-auto" checked> Auto-Athlet</label>
+    <label><input type="checkbox" id="sim-present" checked> Person sichtbar</label>
+  </div>
+</main>
+
+<nav class="tabbar" id="tabbar" aria-label="Hauptnavigation">
+  <button type="button" data-go="home" class="on">Training</button>
+  <button type="button" data-go="history">Verlauf</button>
+  <button type="button" data-go="settings">Einstellungen</button>
+</nav>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
