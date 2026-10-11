@@ -24,11 +24,12 @@ export const SHUFFLE_DEFAULTS = {
   falseStartDx: 2.7, // Bewegung vor dem Pfeil = Fehlstart
   restThreshold: 0.25, // darunter gilt als "noch in Ruhe"
   fitLow: 0.4, // Fenster für die Schätzung des Bewegungsbeginns
-  onsetFit: 1.8, // ab hier gilt der Start als erkannt (Schätzung erfolgt rückwirkend)
+  onsetFit: 1.0, // ab hier gilt der Start als erkannt (Schätzung erfolgt rückwirkend)
   minReactionMs: 100, // schneller ist nicht reaktiv, sondern geraten
   reactTimeoutMs: 4000,
   awayDx: 3.0, // so weit (ca. 1,5 m) musst du auf jeder Seite von der Mitte weg gewesen sein
-  lossSideDx: 1.5, // Verschwindest du ab hier aus dem Bild, zählt das als "auf dieser Seite"
+  lossSideDx: 0.5,
+  lossSideMs: 300, // so lange muss die Person fehlen, bevor das Verschwinden als "Seite erreicht" zählt // Verschwindest du ab hier aus dem Bild, zählt das als "auf dieser Seite"
   finishZone: 0.8, // Zielzone um die Mitte
   maxExtrapolateMs: 300,
   runTimeoutMs: 15000,
@@ -114,6 +115,7 @@ export class ShuffleEngine {
         this.onLossStart();
       }
       this.readySince = null;
+      if (t - this.lostSince >= p.lossSideMs) this.lossSideCheck();
       const inRun = RUN.includes(this.state);
       if ((inRun || this.state === 'countdown' || this.state === 'go') && t - this.lostSince > (inRun ? p.lostRunMs : p.lostPoseMs)) {
         this.abort('Person nicht mehr erkannt');
@@ -161,6 +163,23 @@ export class ShuffleEngine {
 
   /** Aus dem Bild verschwunden: Seite aus der letzten Position ableiten. */
   onLossStart() {
+    const dx = this.lastDx;
+    if (this.state === 'go' && dx != null && (dx - this.ref) * this.dir >= 0.6) {
+      // Aus dem Bild gelaufen, bevor der Start erkannt wurde: Start aus den letzten Bildern schätzen
+      const tl = this.lastVisT;
+      this.estimateOnset(tl);
+      const reaction = this.tOnset - this.tArrow;
+      if (reaction < this.p.minReactionMs) {
+        return this.finishTrial({ valid: false, reason: 'Zu früh gestartet', reaction_ms: Math.round(reaction), run_ms: null });
+      }
+      this.setState('to_a');
+      if (Math.abs(dx) >= this.p.lossSideDx) this.excA = true;
+      return;
+    }
+  }
+
+  /** Fehlt die Person länger als lossSideMs, gilt die zuletzt gesehene Seite als erreicht. */
+  lossSideCheck() {
     const dx = this.lastDx;
     if (dx == null || Math.abs(dx) < this.p.lossSideDx) return;
     const side = Math.sign(dx);

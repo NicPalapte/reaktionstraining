@@ -70,6 +70,19 @@ test('Shuffle: Reaktions- und Laufzeit liegen nahe an der Wahrheit (Läufer verl
   }
 });
 
+test('Shuffle: sehr schmales Bild (Rand nur ca. 0,7 m von der Mitte) – Läufer verlässt es vor der Starterkennung', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    const reactS = 0.2 + (seed % 5) * 0.06;
+    const { events, traj } = runShuffle({ reactS, seed, inFrame: 0.7 });
+    const res = events.find((e) => e[0] === 'result');
+    assert.ok(res, `Seed ${seed}: kein Ergebnis (${JSON.stringify(events.find((e) => e[0] === 'abort'))})`);
+    const r = res[1];
+    assert.equal(r.valid, true, `Seed ${seed}: ungültig (${r.reason})`);
+    assert.ok(Math.abs(r.reaction_ms - traj.truth.reactS * 1000) < 150, `Seed ${seed}: Reaktion ${r.reaction_ms}`);
+    assert.ok(Math.abs(r.run_ms - traj.truth.runS * 1000) < 150, `Seed ${seed}: Laufzeit ${r.run_ms}`);
+  }
+});
+
 test('Shuffle: auch ohne Verlassen des Bildes (breites Bild) wird gemessen', () => {
   const { events, traj } = runShuffle({ seed: 5, inFrame: 99 });
   const r = events.find((e) => e[0] === 'result')[1];
