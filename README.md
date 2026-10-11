@@ -78,3 +78,10 @@ js/chart.js            Verlaufsdiagramm
 js/sim-*.js            Simulationsmodus (?sim=1) und Test-Läufe
 tests/                 Logiktests
 ```
+
+## Konto und Cloud-Abgleich (optional)
+
+Unter Einstellungen → Konto kann man sich mit E-Mail und Passwort anmelden (Supabase). Die App arbeitet weiter zuerst lokal;
+mit Konto werden Zeiten zusätzlich hochgeladen und Zeiten anderer Geräte geladen (Abgleich über die Zeilen-ID, `js/cloud.js`).
+Projekt-URL und publishable Key stehen in `js/config.js` (dürfen öffentlich sein, Schutz über Row Level Security,
+Tabellen siehe `supabase/schema.sql`). „Alles löschen“ löscht bei angemeldetem Konto auch in der Cloud.

@@ -135,12 +135,33 @@
     <label class="field switch"><span>Vorne</span><input type="checkbox" data-key="cmdFront"></label>
   </div>
 
+  <div class="card form" id="account">
+    <h2>Konto (optional)</h2>
+    <div id="acc-out">
+      <p class="hint">Mit Konto werden deine Zeiten zusätzlich gespeichert und auf allen Geräten angezeigt. Ohne Konto bleibt alles lokal.</p>
+      <label class="field col"><span>E-Mail</span><input type="email" id="acc-email" autocomplete="email" inputmode="email" autocapitalize="off"></label>
+      <label class="field col"><span>Passwort</span><input type="password" id="acc-pass" autocomplete="current-password"></label>
+      <div class="row-actions">
+        <button type="button" class="btn primary small" id="acc-login">Anmelden</button>
+        <button type="button" class="btn ghost small" id="acc-register">Registrieren</button>
+      </div>
+    </div>
+    <div id="acc-in" hidden>
+      <p class="hint" id="acc-who"></p>
+      <div class="row-actions">
+        <button type="button" class="btn ghost small" id="acc-sync">Jetzt abgleichen</button>
+        <button type="button" class="btn ghost small" id="acc-logout">Abmelden</button>
+      </div>
+    </div>
+    <p class="hint" id="acc-msg" role="status"></p>
+  </div>
+
   <div class="card form">
     <h2>Kalibrierung</h2>
     <p class="hint" id="cal-info">Noch keine gespeichert.</p>
     <button type="button" class="btn ghost" id="btn-forget-cal">Gespeicherte Kalibrierung löschen</button>
   </div>
-  <p class="foot">Alle Daten liegen nur auf diesem Gerät. Die Kamerabilder werden nicht übertragen.</p>
+  <p class="foot">Zeiten liegen auf diesem Gerät (und mit Konto zusätzlich in deinem Supabase-Projekt). Die Kamerabilder werden nie übertragen.</p>
 </main>
 
 <!-- ======================= Training ======================= -->

@@ -1,5 +1,5 @@
 // Service Worker: App-Dateien und Erkennungsmodell werden gecacht, danach läuft alles offline.
-const VERSION = 'v4';
+const VERSION = 'v5';
 const APP_CACHE = `app-${VERSION}`;
 const LIB_CACHE = 'libs-mediapipe-0.10.21';
 
@@ -14,6 +14,8 @@ const APP_FILES = [
   './js/audio.js',
   './js/calibration.js',
   './js/chart.js',
+  './js/cloud.js',
+  './js/config.js',
   './js/command-engine.js',
   './js/pose.js',
   './js/settings.js',

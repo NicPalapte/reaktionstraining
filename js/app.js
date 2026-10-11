@@ -7,6 +7,7 @@ import { PoseTracker } from './pose.js';
 import { SimTracker } from './sim-tracker.js';
 import * as audio from './audio.js';
 import { drawChart } from './chart.js';
+import { cloud } from './cloud.js';
 
 const $ = (s) => document.querySelector(s);
 const params = new URLSearchParams(location.search);
@@ -387,7 +388,7 @@ class Session {
       valid: r.valid,
       reason: r.reason,
     };
-    store.addTrial(rec).catch((e) => console.warn('Speichern fehlgeschlagen', e));
+    store.addTrial(rec).then(() => cloud.scheduleSync()).catch((e) => console.warn('Speichern fehlgeschlagen', e));
     let isBest = false;
     if (r.valid) {
       this.trials.push(rec);
@@ -486,6 +487,7 @@ class Session {
       });
     }
     this.saved = true;
+    cloud.scheduleSync();
   }
 
   async finishSet() {
@@ -593,7 +595,7 @@ async function renderHistory() {
   document.querySelectorAll('#metric-seg button').forEach((b) => b.classList.toggle('on', b.dataset.metric === histMetric));
   $('#hist-shuffle').hidden = histEx !== EX_SHUFFLE;
   $('#hist-commands').hidden = histEx !== EX_COMMANDS;
-  $('#store-note').textContent = store.name === 'local' ? 'Gespeichert nur auf diesem Gerät.' : 'Gespeichert in der Cloud.';
+  $('#store-note').textContent = cloud.user ? 'Gespeichert auf diesem Gerät und in deinem Konto.' : 'Gespeichert nur auf diesem Gerät.';
 
   if (histEx === EX_SHUFFLE) {
     const all = await store.listTrials(EX_SHUFFLE);
@@ -663,10 +665,71 @@ $('#btn-export').addEventListener('click', async () => {
 });
 
 $('#btn-delete').addEventListener('click', async () => {
-  if (!confirm('Alle gespeicherten Zeiten auf diesem Gerät löschen? Das lässt sich nicht rückgängig machen.')) return;
+  const msg = cloud.user ? 'Alle gespeicherten Zeiten auf diesem Gerät UND in deinem Konto löschen? Das lässt sich nicht rückgängig machen.' : 'Alle gespeicherten Zeiten auf diesem Gerät löschen? Das lässt sich nicht rückgängig machen.';
+  if (!confirm(msg)) return;
+  if (cloud.user) {
+    try {
+      await cloud.deleteRemote();
+    } catch (e) {
+      alert('Die Cloud-Daten konnten nicht gelöscht werden (' + (e?.message || e) + '). Lokal wurde nichts gelöscht.');
+      return;
+    }
+  }
   await store.deleteAll();
   renderHistory();
 });
+
+// ---------- Konto (optional) ----------
+function renderAccount() {
+  const inn = !!cloud.user;
+  $('#acc-out').hidden = inn;
+  $('#acc-in').hidden = !inn;
+  if (inn) {
+    const t = cloud.syncing ? 'Abgleich läuft …' : cloud.lastSync ? `Zuletzt abgeglichen um ${cloud.lastSync.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} Uhr.` : '';
+    $('#acc-who').textContent = `Angemeldet als ${cloud.user.email}. ${t}`;
+  }
+  if (cloud.lastError) $('#acc-msg').textContent = cloud.lastError;
+}
+async function accAction(fn, busy) {
+  const msg = $('#acc-msg');
+  msg.textContent = busy;
+  try {
+    await fn();
+    if (!$('#screen-history').hidden) renderHistory();
+  } catch (e) {
+    msg.textContent = e.message || String(e);
+  }
+}
+$('#acc-login').addEventListener('click', () => {
+  const email = $('#acc-email').value.trim();
+  const pass = $('#acc-pass').value;
+  if (!email || !pass) return ($('#acc-msg').textContent = 'Bitte E-Mail und Passwort eingeben.');
+  accAction(async () => {
+    await cloud.signIn(email, pass);
+    $('#acc-pass').value = '';
+    $('#acc-msg').textContent = '';
+  }, 'Anmelden …');
+});
+$('#acc-register').addEventListener('click', () => {
+  const email = $('#acc-email').value.trim();
+  const pass = $('#acc-pass').value;
+  if (!email || pass.length < 6) return ($('#acc-msg').textContent = 'Bitte E-Mail und ein Passwort mit mindestens 6 Zeichen eingeben.');
+  accAction(async () => {
+    const now = await cloud.signUp(email, pass);
+    $('#acc-pass').value = '';
+    $('#acc-msg').textContent = now ? '' : 'Fast geschafft: Bestätige die E-Mail, die wir dir geschickt haben, und melde dich dann an.';
+  }, 'Konto wird angelegt …');
+});
+$('#acc-logout').addEventListener('click', () => accAction(() => cloud.signOut(), ''));
+$('#acc-sync').addEventListener('click', () => accAction(() => cloud.sync(), 'Abgleich läuft …'));
+cloud.onChange(() => {
+  renderAccount();
+  if (!cloud.syncing && !$('#screen-history').hidden) renderHistory();
+  if (!cloud.lastError && !cloud.syncing) $('#acc-msg').textContent = $('#acc-msg').textContent.startsWith('Abgleich') ? '' : $('#acc-msg').textContent;
+});
+cloud.init();
+window.addEventListener('online', () => cloud.sync());
+renderAccount();
 
 // ---------- Start ----------
 if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !params.has('nosw')) {
