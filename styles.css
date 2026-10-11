@@ -187,3 +187,46 @@ canvas#hist-chart { width: 100%; height: 220px; display: block; touch-action: pa
 
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--ball); outline-offset: 2px; }
+
+/* ---------- Kreuzvorhaben: Grün = los, Rot = stehen bleiben ---------- */
+:root { --go: #3ecf7a; --stop: #ef4b4b; }
+.court .run.go { stroke: var(--go); }
+.court .run.stopc { stroke: var(--stop); }
+.court .pad { fill: var(--surface); stroke: var(--ink); }
+.signal[data-kind="go"] { background: var(--go); color: #06210f; }
+.signal[data-kind="go"] svg { stroke: #06210f; }
+.signal[data-kind="stop"] { background: var(--stop); color: #fff; }
+.signal[data-kind="stop"] svg { stroke: #fff; }
+
+/* ---------- Couch-Spiel ---------- */
+#screen-couch {
+  position: fixed; inset: 0; z-index: 5; display: flex; flex-direction: column; gap: 12px;
+  max-width: none; margin: 0; background: var(--night); touch-action: manipulation;
+  padding: calc(var(--safe-t) + 12px) calc(var(--safe-r) + 14px) calc(var(--safe-b) + 14px) calc(var(--safe-l) + 14px);
+}
+.couch-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.couch-score b { display: block; font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.couch-score span { color: var(--muted); font-size: 13px; }
+.couch-meta { display: flex; flex-direction: column; align-items: flex-end; font-weight: 700; }
+#couch-lives { color: var(--clay); letter-spacing: 0.15em; font-size: 20px; }
+.couch-arena {
+  flex: 1; min-height: 0; border-radius: 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--line); text-align: center; padding: 18px; transition: background 0.08s;
+}
+.couch-arena svg { width: min(60vw, 40vh); height: min(60vw, 40vh); fill: none; stroke: currentColor; stroke-width: 12; stroke-linecap: round; stroke-linejoin: round; }
+.couch-arena svg.left { transform: scaleX(-1); }
+.couch-arena svg.front { transform: rotate(-90deg); }
+.couch-big { font-size: clamp(38px, 12vw, 72px); font-weight: 900; letter-spacing: 0.01em; line-height: 1.05; }
+.couch-sub { color: inherit; opacity: 0.8; max-width: 28ch; min-height: 1.4em; }
+.couch-arena[data-kind="go"] { background: var(--go); color: #06210f; border-color: transparent; }
+.couch-arena[data-kind="stop"] { background: var(--stop); color: #fff; border-color: transparent; }
+.couch-arena[data-kind="fake"] { background: #3b82f6; color: #fff; border-color: transparent; }
+.couch-arena[data-kind="ok"] { background: #1d4d3a; }
+.couch-arena[data-kind="bad"] { background: #5a2a22; }
+.couch-pads { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.couch-pads .pad {
+  min-height: 22vh; max-height: 190px; border-radius: 22px; border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--ink); font: inherit; font-size: 20px; font-weight: 800; touch-action: manipulation;
+}
+.couch-pads .pad.hit { background: var(--ball); color: var(--on-ball); }
+#screen-couch .overlay-card { position: absolute; }

@@ -5,6 +5,7 @@ export const DEFAULT_SETTINGS = {
   voice: true,
   rounds: 6, // Durchgänge pro Satz (5-10-5)
   commandRounds: 12, // Befehle pro Satz
+  decoyRounds: 16, // Aufgaben pro Satz (Kreuzvorhaben)
   minDelay: 1.5,
   maxDelay: 3.5,
   cmdLeft: true,

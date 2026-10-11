@@ -55,6 +55,35 @@
     </span>
   </button>
 
+  <button class="tile" id="start-decoy" type="button">
+    <svg class="court" viewBox="0 0 240 90" aria-hidden="true">
+      <rect x="4" y="4" width="232" height="82" rx="6" class="court-bg"/>
+      <circle cx="120" cy="45" r="5" class="dot"/>
+      <path d="M60 45 H20 M26 39 L18 45 L26 51" class="run go"/>
+      <path d="M180 45 H220 M214 39 L222 45 L214 51" class="run stopc"/>
+    </svg>
+    <span class="tile-body">
+      <span class="tile-title">Kreuzvorhaben</span>
+      <span class="tile-text">Grün: los. Rot: stehen bleiben. Manchmal kippt Grün auf Rot, dann nicht reinfallen.</span>
+      <span class="tile-meta" id="meta-decoy"></span>
+    </span>
+  </button>
+
+  <button class="tile" id="start-couch" type="button">
+    <svg class="court" viewBox="0 0 240 90" aria-hidden="true">
+      <rect x="4" y="4" width="232" height="82" rx="6" class="court-bg"/>
+      <rect x="22" y="48" width="60" height="30" rx="8" class="pad"/>
+      <rect x="90" y="48" width="60" height="30" rx="8" class="pad"/>
+      <rect x="158" y="48" width="60" height="30" rx="8" class="pad"/>
+      <path d="M96 30 H144 M130 18 L146 30 L130 42" class="run go"/>
+    </svg>
+    <span class="tile-body">
+      <span class="tile-title">Reaktionsspiel</span>
+      <span class="tile-text">Ohne Kamera, nur Tippen: Pfeile treffen, Fakes und Täuschungen aussitzen, Level für Level schneller.</span>
+      <span class="tile-meta" id="meta-couch"></span>
+    </span>
+  </button>
+
   <details class="setup">
     <summary>Aufbau</summary>
     <ul>
@@ -73,6 +102,8 @@
   <div class="seg" role="tablist" aria-label="Übung">
     <button type="button" role="tab" class="on" data-ex="shuffle_5_10_5">5-10-5</button>
     <button type="button" role="tab" data-ex="commands">Befehle</button>
+    <button type="button" role="tab" data-ex="decoy_court">Kreuz</button>
+    <button type="button" role="tab" data-ex="decoy_couch">Spiel</button>
   </div>
 
   <section id="hist-shuffle">
@@ -101,6 +132,13 @@
     <div class="card">
       <h2>Einheiten</h2>
       <div id="hist-cmd-list" class="rows"></div>
+    </div>
+  </section>
+
+  <section id="hist-games" hidden>
+    <div class="card">
+      <h2 id="hist-games-title">Einheiten</h2>
+      <div id="hist-games-list" class="rows"></div>
     </div>
   </section>
 
@@ -135,6 +173,12 @@
     <label class="field switch"><span>Vorne</span><input type="checkbox" data-key="cmdFront"></label>
   </div>
 
+  <div class="card form">
+    <h2>Kreuzvorhaben</h2>
+    <label class="field"><span>Aufgaben pro Satz</span><input type="number" min="4" max="60" inputmode="numeric" data-key="decoyRounds"></label>
+    <p class="hint">Richtungen wie bei den Befehlen. Pfeil grün = laufen, rot = stehen bleiben.</p>
+  </div>
+
   <div class="card form" id="account">
     <h2>Konto (optional)</h2>
     <div id="acc-out">
@@ -162,6 +206,36 @@
     <button type="button" class="btn ghost" id="btn-forget-cal">Gespeicherte Kalibrierung löschen</button>
   </div>
   <p class="foot">Zeiten liegen auf diesem Gerät (und mit Konto zusätzlich in deinem Supabase-Projekt). Die Kamerabilder werden nie übertragen.</p>
+</main>
+
+<!-- ======================= Couch-Spiel ======================= -->
+<main id="screen-couch" class="screen couch" hidden>
+  <div class="couch-top">
+    <button type="button" class="icon-btn" id="couch-exit" aria-label="Spiel beenden">✕</button>
+    <div class="couch-score"><b id="couch-score">0</b><span>Punkte</span></div>
+    <div class="couch-meta"><span id="couch-level">Level 1</span><span id="couch-lives" aria-label="Leben">♥♥♥</span></div>
+  </div>
+  <div class="couch-arena" id="couch-arena" data-kind="">
+    <svg id="couch-arrow" viewBox="0 0 100 100" aria-hidden="true" hidden><path d="M8 50 H78 M52 20 L84 50 L52 80" /></svg>
+    <div class="couch-big" id="couch-big">Bereit?</div>
+    <div class="couch-sub" id="couch-sub">Grün: tippe die Richtung. Rot: nicht tippen.</div>
+    <button type="button" class="btn primary couch-start" id="couch-start">Spiel starten</button>
+  </div>
+  <div class="couch-pads" id="couch-pads">
+    <button type="button" class="pad" data-dir="left">Links</button>
+    <button type="button" class="pad" data-dir="front">Vorne</button>
+    <button type="button" class="pad" data-dir="right">Rechts</button>
+  </div>
+  <div class="overlay-card" id="couch-over" hidden>
+    <div class="card">
+      <h2 id="couch-over-title">Spiel vorbei</h2>
+      <div class="stats" id="couch-over-stats"></div>
+      <div class="row-actions">
+        <button type="button" class="btn primary" id="couch-again">Nochmal</button>
+        <button type="button" class="btn ghost" id="couch-done">Fertig</button>
+      </div>
+    </div>
+  </div>
 </main>
 
 <!-- ======================= Training ======================= -->

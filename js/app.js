@@ -2,6 +2,8 @@ import { store, newSessionId } from './storage.js';
 import { loadSettings, saveSettings, loadCalibration, saveCalibration, DEFAULT_SETTINGS } from './settings.js';
 import { ShuffleEngine } from './shuffle-engine.js';
 import { CommandEngine } from './command-engine.js';
+import { DecoyEngine } from './decoy-engine.js';
+import { initCouch } from './couch-ui.js';
 import { Calibrator, makeSample } from './calibration.js';
 import { PoseTracker } from './pose.js';
 import { SimTracker } from './sim-tracker.js';
@@ -14,6 +16,8 @@ const params = new URLSearchParams(location.search);
 const SIM = params.has('sim');
 const EX_SHUFFLE = 'shuffle_5_10_5';
 const EX_COMMANDS = 'commands';
+const EX_DECOY = 'decoy_court';
+const EX_COUCH = 'decoy_couch';
 
 let settings = loadSettings();
 let session = null;
@@ -32,8 +36,8 @@ const fmtDur = (ms) => {
 
 // ---------- Navigation ----------
 function show(name) {
-  for (const id of ['home', 'history', 'settings', 'session']) $(`#screen-${id}`).hidden = id !== name;
-  document.body.classList.toggle('in-session', name === 'session');
+  for (const id of ['home', 'history', 'settings', 'session', 'couch']) $(`#screen-${id}`).hidden = id !== name;
+  document.body.classList.toggle('in-session', name === 'session' || name === 'couch');
   document.querySelectorAll('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.go === name));
   if (name === 'home') refreshHome();
   if (name === 'history') renderHistory();
@@ -49,6 +53,11 @@ async function refreshHome() {
     : 'Noch keine Zeiten';
   const sessions = (await store.listSessions()).filter((s) => s.exercise === EX_COMMANDS);
   $('#meta-commands').textContent = sessions.length ? `${sessions.length} Einheiten` : 'Noch keine Einheiten';
+  const all = await store.listSessions();
+  const dec = all.filter((x) => x.exercise === EX_DECOY);
+  $('#meta-decoy').textContent = dec.length ? `${dec.length} Einheiten` : 'Noch keine Einheiten';
+  const cou = all.filter((x) => x.exercise === EX_COUCH);
+  $('#meta-couch').textContent = cou.length ? `Highscore ${Math.max(...cou.map((x) => x.meta?.score ?? 0))} · ${cou.length} Spiele` : 'Noch kein Spiel';
 }
 
 // ---------- Einstellungen ----------
@@ -104,7 +113,8 @@ document.addEventListener('visibilitychange', () => {
 class Session {
   constructor(kind) {
     this.kind = kind;
-    this.exercise = kind === 'shuffle' ? EX_SHUFFLE : EX_COMMANDS;
+    this.exercise = kind === 'shuffle' ? EX_SHUFFLE : kind === 'decoy' ? EX_DECOY : EX_COMMANDS;
+    this.decoyReact = [];
     this.sessionId = newSessionId();
     this.phase = 'loading';
     this.trials = [];
@@ -242,6 +252,12 @@ class Session {
         params: { minDelayMs, maxDelayMs },
         onEvent: (n, d) => this.onShuffleEvent(n, d),
       });
+    } else if (this.kind === 'decoy') {
+      const commands = [settings.cmdLeft && 'left', settings.cmdRight && 'right', settings.cmdFront && 'front'].filter(Boolean);
+      this.eng = new DecoyEngine({
+        params: { commands: commands.length ? commands : ['left', 'right', 'front'], minDelayMs: Math.min(minDelayMs, 2000), maxDelayMs: Math.min(maxDelayMs, 3500) },
+        onEvent: (n, d) => this.onDecoyEvent(n, d),
+      });
     } else {
       const commands = [settings.cmdLeft && 'left', settings.cmdRight && 'right', settings.cmdFront && 'front'].filter(Boolean);
       this.eng = new CommandEngine({
@@ -254,6 +270,7 @@ class Session {
   startSet() {
     this.trials = [];
     this.cmdCounts = { left: 0, right: 0, front: 0 };
+    this.decoyReact = [];
     this.setStart = Date.now();
     this.saved = false;
     this.updateCount();
@@ -262,6 +279,7 @@ class Session {
 
   updateCount() {
     if (this.kind === 'shuffle') $('#hud-count').textContent = `${this.trials.length} / ${settings.rounds}`;
+    else if (this.kind === 'decoy') $('#hud-count').textContent = `${this.eng?.rounds ?? 0} / ${settings.decoyRounds}`;
     else $('#hud-count').textContent = `${this.eng?.issued ?? 0} / ${settings.commandRounds}`;
   }
 
@@ -319,14 +337,15 @@ class Session {
   }
 
   // ----- Signale -----
-  showSignal(direction) {
+  showSignal(direction, kind = '') {
+    $('#signal').dataset.kind = kind;
     const svg = $('#signal-arrow');
     svg.setAttribute('class', direction === 'left' ? 'left' : direction === 'front' ? 'front' : '');
-    $('#signal-label').textContent = direction === 'left' ? 'LINKS' : direction === 'right' ? 'RECHTS' : 'VORNE';
+    $('#signal-label').textContent = kind === 'stop' ? 'STEHEN' : direction === 'left' ? 'LINKS' : direction === 'right' ? 'RECHTS' : 'VORNE';
     $('#result').hidden = true;
     $('#signal').hidden = false;
     if (settings.sound) audio.beep(1046, 160);
-    if (this.kind === 'commands' && settings.voice) audio.speak(dirLabel[direction]);
+    if ((this.kind === 'commands' || (this.kind === 'decoy' && kind === 'go')) && settings.voice) audio.speak(dirLabel[direction]);
     // Zeitpunkt, an dem der Pfeil wirklich auf dem Bildschirm stand
     const eng = this.eng;
     requestAnimationFrame(() => requestAnimationFrame(() => eng?.confirmArrow?.(performance.now())));
@@ -334,6 +353,7 @@ class Session {
 
   hideSignal() {
     $('#signal').hidden = true;
+    $('#signal').dataset.kind = '';
   }
 
   notice(reason, sub = 'Zurück in die Mitte.') {
@@ -426,6 +446,77 @@ class Session {
     }
   }
 
+  // ----- Kreuzvorhaben (Täuschungen) -----
+  onDecoyEvent(name, d) {
+    switch (name) {
+      case 'state': {
+        const fb = this.fb;
+        if (d.state === 'wait_ready') {
+          this.hideSignal();
+          this.hud(fb?.big ?? 'Mitte', fb?.sub ?? 'Stell dich hin und bleib kurz ruhig.', fb ? 'run' : 'wait');
+        } else if (d.state === 'countdown') {
+          this.hideSignal();
+          this.hud('Bereit', 'Grün: los. Rot: stehen bleiben.', 'ready');
+        } else if (d.state === 'away') {
+          this.hideSignal();
+          this.hud(fb?.big ?? 'Zurück', fb?.sub ?? 'Zurück in die Mitte.', 'run');
+        }
+        this.fb = null;
+        return;
+      }
+      case 'signal':
+        this.hud('', '', 'command');
+        this.showSignal(d.command, d.type === 'stop' ? 'stop' : 'go');
+        if (SIM && $('#sim-auto').checked && d.type === 'go') this.tracker.runCommand(d.command);
+        return;
+      case 'flip':
+        // gleicher Pfeil, aber jetzt rot: bitte stoppen
+        $('#signal').dataset.kind = 'stop';
+        $('#signal-label').textContent = 'STEHEN';
+        if (settings.sound) audio.beep(330, 220);
+        return;
+      case 'result': {
+        this.hideSignal();
+        const tag = { go: 'laufen', stop: 'stehen', flip: 'kippen' }[d.type];
+        store
+          .addTrial({
+            exercise: EX_DECOY,
+            session_id: this.sessionId,
+            direction: d.command,
+            reaction_ms: d.reaction_ms,
+            run_ms: null,
+            total_ms: null,
+            split_a_ms: null,
+            split_b_ms: null,
+            valid: d.correct,
+            reason: d.correct ? d.type : `${d.type}:${d.reason}`,
+          })
+          .then(() => cloud.scheduleSync())
+          .catch((e) => console.warn('Speichern fehlgeschlagen', e));
+        if (d.correct && d.reaction_ms != null) this.decoyReact.push(d.reaction_ms);
+        if (d.correct) {
+          this.fb = { big: d.type === 'go' ? (d.reaction_ms != null ? `${d.reaction_ms} ms` : 'Gut') : 'Richtig!', sub: d.type === 'go' ? 'Zurück in die Mitte.' : tag === 'kippen' ? 'Stark: nicht reingefallen.' : 'Gut gehalten.' };
+          if (settings.sound) audio.beep(1318, 90);
+        } else {
+          this.fb = { big: d.reason, sub: d.type === 'go' ? 'Zurück in die Mitte.' : 'Rot heißt: stehen bleiben. Zurück in die Mitte.' };
+          if (settings.sound) audio.beep(220, 260);
+        }
+        this.updateCount();
+        return;
+      }
+      case 'timeout':
+        return this.notice('Keine Bewegung erkannt', 'Ich warte, bis du wieder bereit stehst.');
+      case 'round':
+        this.updateCount();
+        if (d.rounds >= settings.decoyRounds) {
+          this.eng.stop();
+          this.finishSet();
+        }
+        return;
+      default:
+    }
+  }
+
   // ----- Befehle -----
   onCommandEvent(name, d) {
     switch (name) {
@@ -475,6 +566,17 @@ class Session {
         avg_run_ms: Math.round(avg(runs)),
         avg_reaction_ms: Math.round(avg(this.trials.map((t) => t.reaction_ms))),
       });
+    } else if (this.kind === 'decoy') {
+      const done = this.eng?.rounds ?? 0;
+      if (!done) return;
+      await store.addSession({
+        exercise: EX_DECOY,
+        session_id: this.sessionId,
+        rounds: done,
+        duration_ms: Date.now() - this.setStart,
+        avg_reaction_ms: this.decoyReact.length ? Math.round(avg(this.decoyReact)) : null,
+        meta: { ...this.eng.stats },
+      });
     } else {
       const done = this.eng?.rounds ?? 0;
       if (!done) return;
@@ -507,6 +609,21 @@ class Session {
         ['Ø Laufzeit', fmtS(avg(runs))],
         ['Ø Reaktion', fmtMs(avg(this.trials.map((t) => t.reaction_ms)))],
         ['Ø links / rechts', `${l != null ? fmtSec(l) : '–'} / ${r != null ? fmtSec(r) : '–'}`],
+      ]
+        .map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`)
+        .join('');
+    } else if (this.kind === 'decoy') {
+      $('#summary-title').textContent = 'Einheit beendet';
+      const st = this.eng.stats;
+      const okAll = st.go[0] + st.stop[0] + st.flip[0];
+      const totAll = st.go[1] + st.stop[1] + st.flip[1];
+      const dOk = st.stop[0] + st.flip[0];
+      const dTot = st.stop[1] + st.flip[1];
+      box.innerHTML = [
+        ['Richtig', `${okAll} / ${totAll}`],
+        ['Ø Reaktion (Laufen)', this.decoyReact.length ? fmtMs(avg(this.decoyReact)) : '–'],
+        ['Täuschungen bestanden', dTot ? `${dOk} / ${dTot}` : '–'],
+        ['Dauer', fmtDur(Date.now() - this.setStart)],
       ]
         .map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`)
         .join('');
@@ -557,6 +674,13 @@ function startSession(kind) {
 
 $('#start-shuffle').addEventListener('click', () => startSession('shuffle'));
 $('#start-commands').addEventListener('click', () => startSession('commands'));
+$('#start-decoy').addEventListener('click', () => startSession('decoy'));
+const couch = initCouch({ store, cloud, audio, exCouch: EX_COUCH, settings: () => settings, onExit: () => show('home') });
+$('#start-couch').addEventListener('click', () => {
+  audio.unlock();
+  show('couch');
+  couch.open();
+});
 $('#btn-stop').addEventListener('click', () => session?.end());
 $('#btn-again').addEventListener('click', () => session?.again());
 $('#btn-done').addEventListener('click', () => session?.end());
@@ -595,6 +719,7 @@ async function renderHistory() {
   document.querySelectorAll('#metric-seg button').forEach((b) => b.classList.toggle('on', b.dataset.metric === histMetric));
   $('#hist-shuffle').hidden = histEx !== EX_SHUFFLE;
   $('#hist-commands').hidden = histEx !== EX_COMMANDS;
+  $('#hist-games').hidden = histEx !== EX_DECOY && histEx !== EX_COUCH;
   $('#store-note').textContent = cloud.user ? 'Gespeichert auf diesem Gerät und in deinem Konto.' : 'Gespeichert nur auf diesem Gerät.';
 
   if (histEx === EX_SHUFFLE) {
@@ -632,6 +757,21 @@ async function renderHistory() {
           })
           .join('')
       : '<p class="empty">Noch keine Sätze.</p>';
+  } else if (histEx === EX_DECOY || histEx === EX_COUCH) {
+    const sessions = (await store.listSessions()).filter((s) => s.exercise === histEx).reverse();
+    $('#hist-games-title').textContent = histEx === EX_DECOY ? 'Einheiten Kreuzvorhaben' : 'Reaktionsspiel';
+    const ok = (m) => (m ? ['go', 'stop', 'flip'].reduce((a, k) => a + (m[k]?.[0] ?? 0), 0) : null);
+    const tot = (m) => (m ? ['go', 'stop', 'flip'].reduce((a, k) => a + (m[k]?.[1] ?? 0), 0) : null);
+    $('#hist-games-list').innerHTML = sessions.length
+      ? sessions
+          .slice(0, 40)
+          .map((x) => {
+            const react = x.avg_reaction_ms != null ? ` · Ø ${fmtMs(x.avg_reaction_ms)}` : '';
+            if (histEx === EX_COUCH) return `<div class="row"><span class="d">${dayKey(x.created_at)}</span><span>${x.meta?.score ?? 0} Punkte</span><span>Level ${x.meta?.level ?? 1}${react}</span></div>`;
+            return `<div class="row"><span class="d">${dayKey(x.created_at)}</span><span>${ok(x.meta)} / ${tot(x.meta)} richtig</span><span>${fmtDur(x.duration_ms)}${react}</span></div>`;
+          })
+          .join('')
+      : '<p class="empty">Noch nichts gespielt.</p>';
   } else {
     const sessions = (await store.listSessions()).filter((s) => s.exercise === EX_COMMANDS).reverse();
     $('#hist-cmd-list').innerHTML = sessions.length

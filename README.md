@@ -85,3 +85,13 @@ Unter Einstellungen → Konto kann man sich mit E-Mail und Passwort anmelden (Su
 mit Konto werden Zeiten zusätzlich hochgeladen und Zeiten anderer Geräte geladen (Abgleich über die Zeilen-ID, `js/cloud.js`).
 Projekt-URL und publishable Key stehen in `js/config.js` (dürfen öffentlich sein, Schutz über Row Level Security,
 Tabellen siehe `supabase/schema.sql`). „Alles löschen“ löscht bei angemeldetem Konto auch in der Cloud.
+
+## Kreuzvorhaben und Reaktionsspiel
+
+- **Kreuzvorhaben** (Platz, mit Kamera, `js/decoy-engine.js`): Pfeil grün = loslaufen und zurück (Reaktionszeit wird geschätzt),
+  rot = stehen bleiben, manchmal kippt Grün nach 0,2–0,4 s auf Rot. Gespeichert wird pro Aufgabe richtig/falsch
+  (`reason` = `go`, `stop`, `flip` bzw. `typ:fehler`).
+- **Reaktionsspiel** (Couch, ohne Kamera, `js/couch-engine.js`): links/rechts/vorne antippen. Grün = tippen, Rot = nicht tippen,
+  Grün-zu-Rot = nicht reinfallen, Blau = Fake (ignorieren, danach kommt oft gleich der echte Pfeil). 3 Leben, Punkte mit Serien-Bonus,
+  alle 8 Treffer ein Level (schneller, mehr Täuschungen). Interne Übungsnamen: `decoy_court`, `decoy_couch`.
+- Supabase: Wer `schema.sql` schon vorher ausgeführt hat, führt einmal `supabase/migration-2-spiele.sql` aus.

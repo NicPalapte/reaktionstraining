@@ -115,6 +115,7 @@ class Cloud {
     if (!this.user || this.syncing || !navigator.onLine) return;
     this.syncing = true;
     this.lastError = null;
+    let schemaOld = false;
     this.emit();
     try {
       for (const [table, cols, local, put] of [
@@ -128,11 +129,16 @@ class Cloud {
         const up = mine.filter((r) => UUID.test(r.id) && !remoteIds.has(r.id)).map((r) => pick(r, cols));
         for (let i = 0; i < up.length; i += 200) {
           const { error } = await this.sb.from(table).upsert(up.slice(i, i + 200), { onConflict: 'id', ignoreDuplicates: true });
-          if (error) throw error;
+          if (error) {
+            // Prüfregel verletzt: Schema in Supabase ist älter als die App. Rest trotzdem weiter abgleichen.
+            if (error.code === '23514') schemaOld = true;
+            else throw error;
+          }
         }
         for (const r of remote) if (!localIds.has(r.id)) await put(r);
       }
       this.lastSync = new Date();
+      if (schemaOld) this.lastError = 'Das Supabase-Schema ist veraltet: bitte supabase/migration-2-spiele.sql im SQL Editor ausführen.';
     } catch (e) {
       console.warn('Abgleich fehlgeschlagen', e);
       this.lastError = this.msg(e);
