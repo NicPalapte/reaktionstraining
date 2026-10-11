@@ -150,6 +150,7 @@ class Session {
     const vw = this.tracker?.vw || 1280;
     const vh = this.tracker?.vh || 720;
     $('#frame').style.setProperty('--ar', String(vw / vh));
+    $('#frame').dataset.portrait = vh > vw ? '1' : '0';
   }
 
   setLoading(title, text) {

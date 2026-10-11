@@ -140,6 +140,7 @@ canvas#hist-chart { width: 100%; height: 220px; display: block; touch-action: pa
 #screen-session { position: fixed; inset: 0; background: #000; overflow: hidden; }
 .stage { position: absolute; inset: 0; display: grid; place-items: center; }
 .frame { position: relative; width: min(100vw, calc(100svh * var(--ar, 1.7778))); aspect-ratio: var(--ar, 1.7778); }
+@media (orientation: portrait) { .frame[data-portrait="1"] { width: 100vw; } }
 .frame video, .frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .frame video { transform: scaleX(-1); object-fit: cover; opacity: 0.55; }
 

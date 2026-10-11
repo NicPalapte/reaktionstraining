@@ -12,7 +12,7 @@ const REMOTE_MODEL =
   'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
 const LOCAL_MODEL = './models/pose_landmarker_lite.task';
 
-const VIS = 0.4;
+const VIS = 0.25;
 
 export class PoseTracker {
   constructor() {
@@ -29,22 +29,40 @@ export class PoseTracker {
     this.video = video;
     onStatus('Kamera wird gestartet …');
     const portrait = window.innerHeight > window.innerWidth;
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: {
-        facingMode: 'user',
-        width: { ideal: portrait ? 720 : 1280 },
-        height: { ideal: portrait ? 1280 : 720 },
-        frameRate: { ideal: 30, max: 60 },
-      },
-    });
-    video.srcObject = this.stream;
-    video.muted = true;
-    video.setAttribute('playsinline', '');
-    await video.play();
-    await new Promise((r) => (video.videoWidth ? r() : video.addEventListener('loadedmetadata', r, { once: true })));
+    // iOS liefert trotz Hochformat oft ein 16:9-Querformatbild (schmaler Streifen, kleiner
+    // vertikaler Ausschnitt). Deshalb mehrere Anfragen nacheinander, bis ein Hochformatbild kommt.
+    const fr = { ideal: 30, max: 60 };
+    const attempts = portrait
+      ? [
+          { width: { exact: 720 }, height: { exact: 960 }, frameRate: fr },
+          { width: { exact: 720 }, height: { exact: 1280 }, frameRate: fr },
+          { width: { ideal: 720 }, height: { ideal: 1280 }, aspectRatio: { ideal: 9 / 16 }, frameRate: fr },
+          { width: { ideal: 480 }, height: { ideal: 640 }, aspectRatio: { ideal: 3 / 4 }, frameRate: fr },
+          { frameRate: fr },
+        ]
+      : [{ width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: fr }];
+    this.stream = null;
+    for (let i = 0; i < attempts.length; i++) {
+      let st;
+      try {
+        st = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'user', ...attempts[i] } });
+      } catch (e) {
+        if (e?.name === 'NotAllowedError' || e?.name === 'NotFoundError' || i === attempts.length - 1) throw e;
+        continue; // Overconstrained: nächste Variante
+      }
+      video.srcObject = st;
+      video.muted = true;
+      video.setAttribute('playsinline', '');
+      await video.play();
+      await new Promise((r) => (video.videoWidth ? r() : video.addEventListener('loadedmetadata', r, { once: true })));
+      const ok = !portrait || video.videoHeight >= video.videoWidth;
+      if (this.stream) this.stream.getTracks().forEach((t) => t.stop());
+      this.stream = st;
+      if (ok) break;
+    }
     this.vw = video.videoWidth;
     this.vh = video.videoHeight;
+    console.info(`Kamerabild ${this.vw}x${this.vh}`);
 
     onStatus('Erkennung wird geladen (beim ersten Mal ca. 10 MB) …');
     const vision = await import(`${CDN}/vision_bundle.mjs`);
@@ -55,9 +73,9 @@ export class PoseTracker {
         baseOptions: { modelAssetPath, delegate },
         runningMode: 'VIDEO',
         numPoses: 1,
-        minPoseDetectionConfidence: 0.5,
-        minPosePresenceConfidence: 0.5,
-        minTrackingConfidence: 0.5,
+        minPoseDetectionConfidence: 0.3,
+        minPosePresenceConfidence: 0.3,
+        minTrackingConfidence: 0.3,
       });
     try {
       this.landmarker = await make('GPU');
@@ -109,7 +127,7 @@ export class PoseTracker {
     const sh = [get(11), get(12)].filter(Boolean);
     const hp = [get(23), get(24)].filter(Boolean);
     const all = [...sh, ...hp];
-    if (all.length < 3 || !sh.length || !hp.length) return null;
+    if (all.length < 2 || !sh.length || !hp.length) return null; // eine Schulter + eine Hüfte reichen
     const avg = (arr, k) => arr.reduce((a, p) => a + p[k], 0) / arr.length;
     const sx = avg(sh, 'x');
     const sy = avg(sh, 'y');
