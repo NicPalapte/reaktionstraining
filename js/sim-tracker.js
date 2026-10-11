@@ -3,15 +3,18 @@
 
 import { shuffleTrajectory, commandTrajectory } from './sim-trajectory.js';
 
-const VW = 1280;
-const VH = 720;
-const S0 = 70; // Rumpflänge in Pixeln bei r = 1
-const U_WIDTH = 0.35; // u = 1 entspricht 35 % der Bildbreite
+// Hochformat: 720 x 1280 Pixel, 5 m Bildbreite auf Höhe der Person, Rumpflänge 0,5 m = 72 Pixel.
+const VW = 720;
+const VH = 1280;
+const S0 = 72; // Rumpflänge in Pixeln bei r = 1
+const VIEW_M = 5; // sichtbare Breite in Metern
+const OUT_M = 2.4; // ab hier ist die Person nicht mehr (ganz) im Bild
+const HALF_RANGE_M = 4.57; // eine Seite beim 5-10-5
 
 export class SimTracker {
   constructor() {
     this.onSample = () => {};
-    this.u = 0;
+    this.m = 0; // seitliche Position in Metern (rechts positiv)
     this.r = 1;
     this.present = true;
     this.anim = null; // { fn(tRelS) -> {u, r}, t0, endS }
@@ -33,7 +36,7 @@ export class SimTracker {
     if (this.anim) {
       const rel = (now - this.anim.t0) / 1000;
       const v = this.anim.fn(rel);
-      this.u = v.u;
+      this.m = v.m;
       this.r = v.r;
       if (rel > this.anim.endS) this.anim = null;
     }
@@ -41,8 +44,8 @@ export class SimTracker {
   }
 
   sample() {
-    if (!this.present || this.r > 1.7) return null;
-    const x = 0.5 + this.u * U_WIDTH;
+    if (!this.present || this.r > 1.7 || Math.abs(this.m) > OUT_M) return null;
+    const x = 0.5 + this.m / VIEW_M;
     const s = S0 * this.r;
     const y = 0.5;
     const th = (s / VH) * 0.5;
@@ -56,8 +59,9 @@ export class SimTracker {
     return { x, y, s, vw: VW, vh: VH, pts };
   }
 
-  setU(u) {
-    this.u = u;
+  /** Position in Metern setzen (Schieberegler). */
+  setM(m) {
+    this.m = m;
     this.anim = null;
   }
 
@@ -70,9 +74,9 @@ export class SimTracker {
       t0: performance.now(),
       endS: traj.endS + 0.4 + back,
       fn: (t) => {
-        if (t <= traj.endS + 0.4) return { u: traj.u(t), r: 1 };
+        if (t <= traj.endS + 0.4) return { m: traj.u(t) * HALF_RANGE_M, r: 1 };
         const k = Math.min(1, (t - traj.endS - 0.4) / back);
-        return { u: traj.u(traj.endS) * (1 - ease(k)), r: 1 };
+        return { m: traj.u(traj.endS) * HALF_RANGE_M * (1 - ease(k)), r: 1 };
       },
     };
   }
@@ -84,22 +88,13 @@ export class SimTracker {
       endS: traj.endS + 0.3,
       fn: (t) => {
         const s = traj.sample(t);
-        // dx in Rumpflängen -> u-Einheiten
-        return { u: (s.dx * S0) / (VW * U_WIDTH), r: s.r };
+        return { m: s.dx * 0.5, r: s.r }; // Rumpflängen -> Meter
       },
     };
   }
 
-  /** Stellt sich nacheinander auf Mitte, links, rechts (für Tests). */
-  autoCalibrate(steps) {
-    const seq = steps.map((s) => (s === 'center' ? 0 : s === 'left' ? -1 : 1));
-    let i = 0;
-    const go = () => {
-      if (i > seq.length) return;
-      this.setU(i < seq.length ? seq[i] : 0); // zum Schluss zurück in die Mitte
-      i += 1;
-      setTimeout(go, 2900);
-    };
-    go();
+  /** Steht für die Kalibrierung in der Mitte (für Tests). */
+  autoCalibrate() {
+    this.setM(0);
   }
 }

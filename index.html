@@ -35,7 +35,7 @@
     </svg>
     <span class="tile-body">
       <span class="tile-title">5-10-5 Shuffle</span>
-      <span class="tile-text">Pfeil erscheint, du sprintest los. Reaktionszeit und Laufzeit werden gemessen.</span>
+      <span class="tile-text">Pfeil erscheint, du sprintest los. Die Zeit stoppt, wenn du zum zweiten Mal durch die Mitte läufst.</span>
       <span class="tile-meta" id="meta-shuffle"></span>
     </span>
   </button>
@@ -58,8 +58,8 @@
   <details class="setup">
     <summary>Aufbau</summary>
     <ul>
-      <li>Gerät auf Hüfthöhe stellen, Bildschirm zu dir, am besten im Querformat.</li>
-      <li>4 bis 6 m Abstand zur Mittellinie. Du musst auch an den äußeren Linien noch ganz im Bild sein.</li>
+      <li>Gerät im Hochformat auf Hüfthöhe stellen, Bildschirm zu dir, genau vor der Mittellinie.</li>
+      <li>Etwa 5 m Abstand. Du darfst beim Lauf aus dem Bild laufen, du musst nur in der Mitte gut zu sehen sein.</li>
       <li>Bildschirm bleibt während der Übung an. Das Gerät nicht sperren.</li>
       <li>Gute Beleuchtung, nicht gegen die Sonne filmen.</li>
     </ul>
@@ -125,8 +125,6 @@
     <label class="field"><span>Durchgänge pro Satz</span><input type="number" min="1" max="30" inputmode="numeric" data-key="rounds"></label>
     <label class="field"><span>Pfeil frühestens nach (s)</span><input type="number" min="0.5" max="8" step="0.5" inputmode="decimal" data-key="minDelay"></label>
     <label class="field"><span>Pfeil spätestens nach (s)</span><input type="number" min="1" max="10" step="0.5" inputmode="decimal" data-key="maxDelay"></label>
-    <label class="field col"><span>Wendepunkt gilt ab <b id="turn-label"></b> des Wegs zur Linie</span><input type="range" min="0.5" max="0.95" step="0.05" data-key="turnThreshold"></label>
-    <p class="hint">Wird die Linie mit der Hand berührt, ist die Körpermitte noch etwas davor. 70 % passt meistens.</p>
   </div>
 
   <div class="card form">
@@ -163,7 +161,6 @@
       <div class="hud-big" id="hud-big"></div>
       <div class="hud-sub" id="hud-sub"></div>
       <div class="meter" id="cal-meter" hidden><i id="cal-bar"></i></div>
-      <div class="steps" id="cal-steps" hidden></div>
       <button type="button" class="btn small" id="btn-use-cal" hidden>Letzte Kalibrierung verwenden</button>
     </div>
   </div>
@@ -203,7 +200,7 @@
 
   <div class="sim" id="sim" hidden>
     <b>Simulation</b>
-    <label>Position <input type="range" id="sim-u" min="-1.4" max="1.4" step="0.01" value="0"></label>
+    <label>Position (m) <input type="range" id="sim-u" min="-5" max="5" step="0.05" value="0"></label>
     <label><input type="checkbox" id="sim-auto" checked> Auto-Athlet</label>
     <label><input type="checkbox" id="sim-present" checked> Person sichtbar</label>
   </div>

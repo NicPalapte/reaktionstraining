@@ -168,7 +168,7 @@ canvas#hist-chart { width: 100%; height: 220px; display: block; touch-action: pa
 .signal svg.front { transform: rotate(-90deg); }
 .signal-label { font-size: clamp(34px, 12vmin, 110px); font-weight: 900; letter-spacing: 0.01em; line-height: 1; }
 
-.result { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: rgba(13, 27, 36, 0.9); z-index: 2; text-align: center; }
+.result { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: rgba(13, 27, 36, 0.97); z-index: 2; text-align: center; }
 .result-label { color: var(--muted); font-weight: 700; font-size: clamp(16px, 3.6vmin, 26px); }
 .result-main { font-size: clamp(64px, 24vmin, 200px); font-weight: 900; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--ball); }
 .result-main.bad { color: var(--clay); font-size: clamp(40px, 12vmin, 100px); }

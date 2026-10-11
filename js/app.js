@@ -2,7 +2,7 @@ import { store, newSessionId } from './storage.js';
 import { loadSettings, saveSettings, loadCalibration, saveCalibration, DEFAULT_SETTINGS } from './settings.js';
 import { ShuffleEngine } from './shuffle-engine.js';
 import { CommandEngine } from './command-engine.js';
-import { Calibrator, makeU, makeCommandSample } from './calibration.js';
+import { Calibrator, makeSample } from './calibration.js';
 import { PoseTracker } from './pose.js';
 import { SimTracker } from './sim-tracker.js';
 import * as audio from './audio.js';
@@ -57,7 +57,6 @@ function refreshSettings() {
     if (el.type === 'checkbox') el.checked = !!v;
     else el.value = v;
   });
-  $('#turn-label').textContent = `${Math.round(settings.turnThreshold * 100)} %`;
   const c = loadCalibration();
   $('#cal-info').textContent = c ? 'Eine Kalibrierung ist gespeichert. Sie gilt nur, solange Gerät und Linien an derselben Stelle stehen.' : 'Noch keine gespeichert.';
 }
@@ -182,7 +181,6 @@ class Session {
     $('#hud-sub').textContent = '';
     $('#hud-count').textContent = '';
     $('#cal-meter').hidden = true;
-    $('#cal-steps').hidden = true;
     $('#btn-use-cal').hidden = true;
     $('#hud').dataset.mode = '';
     $('#sim').hidden = !SIM;
@@ -196,33 +194,22 @@ class Session {
 
   // ----- Kalibrierung -----
   askCalibration() {
-    this.steps = this.kind === 'shuffle' ? ['center', 'left', 'right'] : ['center'];
-    this.calibrator = new Calibrator({ steps: this.steps });
+    this.calibrator = new Calibrator();
     this.phase = 'calibrate';
-    this.stepIdx = -1;
     $('#cal-meter').hidden = false;
-    $('#cal-steps').hidden = false;
     const saved = loadCalibration();
-    const usable = saved && (this.kind === 'commands' || saved.xL != null);
     const btn = $('#btn-use-cal');
-    btn.hidden = !usable;
+    btn.hidden = !saved?.x0 || !saved?.s0;
     btn.onclick = () => {
       btn.hidden = true;
       this.useCal(saved, false);
     };
-    if (SIM && $('#sim-auto').checked) this.tracker.autoCalibrate(this.steps);
+    if (SIM && $('#sim-auto').checked) this.tracker.autoCalibrate();
   }
 
   stepCalibration(t, s) {
-    const r = this.calibrator.update(t, s ? { x: s.x, s: s.s } : null);
-    const names = { center: 'Mitte', left: 'Links', right: 'Rechts' };
-    if (r.index !== this.stepIdx) {
-      this.stepIdx = r.index;
-      $('#cal-steps').innerHTML = this.steps
-        .map((st, i) => `<span class="${i === r.index ? 'on' : i < r.index ? 'done' : ''}">${names[st]}</span>`)
-        .join('');
-    }
-    this.hud(r.done ? 'Fertig' : names[r.step], r.hint, 'cal');
+    const r = this.calibrator.update(t, s ? { x: s.x, s: s.s, vh: s.vh } : null);
+    this.hud(r.done ? 'Fertig' : 'Mitte', r.hint, 'cal');
     $('#cal-bar').style.width = `${Math.round(r.progress * 100)}%`;
     if (r.captured && settings.sound) audio.beep(988, 140);
     if (r.done) this.useCal(r.cal, true);
@@ -232,15 +219,10 @@ class Session {
     if (this.phase !== 'calibrate') return;
     this.cal = cal;
     this.phase = 'run';
-    if (fresh) {
-      const old = loadCalibration();
-      if (cal.xL != null || !old?.xL) saveCalibration(cal);
-    }
+    if (fresh) saveCalibration(cal);
     $('#cal-meter').hidden = true;
-    $('#cal-steps').hidden = true;
     $('#btn-use-cal').hidden = true;
-    this.toU = cal.xL != null ? makeU(cal) : null;
-    this.toCmd = makeCommandSample(cal);
+    this.toSample = makeSample(cal);
     this.createEngine();
     const delay = cal.warning ? 3500 : 600;
     this.hud(cal.warning ? 'Achtung' : 'Los geht’s', cal.warning || '', cal.warning ? 'notice' : '');
@@ -255,7 +237,7 @@ class Session {
     const maxDelayMs = Math.max(settings.maxDelay, settings.minDelay + 0.5) * 1000;
     if (this.kind === 'shuffle') {
       this.eng = new ShuffleEngine({
-        params: { turnThreshold: settings.turnThreshold, minDelayMs, maxDelayMs },
+        params: { minDelayMs, maxDelayMs },
         onEvent: (n, d) => this.onShuffleEvent(n, d),
       });
     } else {
@@ -286,8 +268,7 @@ class Session {
     this.drawOverlay(s);
     if (this.phase === 'calibrate') this.stepCalibration(t, s);
     else if (this.phase === 'run' && this.eng) {
-      if (this.kind === 'shuffle') this.eng.update(t, s ? this.toU(s.x) : null);
-      else this.eng.update(t, s ? this.toCmd(s) : null);
+      this.eng.update(t, s ? this.toSample(s) : null);
     }
   }
 
@@ -315,13 +296,8 @@ class Session {
       ctx.lineTo(x * w, h);
       ctx.stroke();
     };
-    const acc = this.phase === 'calibrate' ? this.calibrator?.acc : null;
-    const cal = this.cal || (acc && { x0: acc.center?.x, xL: acc.left?.x, xR: acc.right?.x });
-    if (cal) {
-      if (cal.x0 != null) line(cal.x0, white, [10, 10], 2);
-      if (cal.xL != null) line(cal.xL, ball, [], 4);
-      if (cal.xR != null) line(cal.xR, ball, [], 4);
-    }
+    const x0 = this.cal?.x0 ?? this.calibrator?.captured?.x;
+    if (x0 != null) line(x0, ball, [], 4); // die kalibrierte Mittellinie
     if (s) {
       ctx.setLineDash([]);
       ctx.fillStyle = 'rgba(238,242,236,0.85)';
@@ -371,6 +347,7 @@ class Session {
       case 'state':
         return this.renderShuffleState(d.state);
       case 'arrow':
+        this.hud('', '', 'go'); // Statustext weg, damit nur der Pfeil zu sehen ist
         this.showSignal(d.direction);
         if (SIM && $('#sim-auto').checked) this.tracker.runShuffle(d.direction === 'left' ? -1 : 1, { reactS: 0.22 + Math.random() * 0.15 });
         return;
@@ -585,7 +562,7 @@ $('#btn-error-back').addEventListener('click', () => session?.end());
 if (SIM) {
   $('#sim-u').addEventListener('input', (e) => {
     $('#sim-auto').checked = false;
-    session?.tracker?.setU?.(Number(e.target.value));
+    session?.tracker?.setM?.(Number(e.target.value));
   });
   $('#sim-present').addEventListener('change', (e) => {
     if (session?.tracker) session.tracker.present = e.target.checked;

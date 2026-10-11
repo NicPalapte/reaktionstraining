@@ -1,37 +1,47 @@
-// Zustandsmaschine für die 5-10-5-Shuffle-Übung.
+// Zustandsmaschine für die 5-10-5-Shuffle-Übung (nur Mittellinie, Hochformat).
 //
-// Eingabe pro Kamerabild: update(t, u)
-//   t = Zeitstempel in ms, u = normierte Position (null = keine Person erkannt)
-//   u = 0 ist die Mitte, u = -1 die linke Linie, u = +1 die rechte Linie
-//   (links/rechts aus Sicht der Person, die zur Kamera schaut).
+// Eingabe pro Kamerabild: update(t, s)
+//   t = Zeitstempel in ms
+//   s = { dx, r } oder null (keine Person im Bild)
+//   dx = seitliche Abweichung von der Mitte in Rumpflängen (rechts positiv, aus Sicht der Person)
+//   r  = aktuelle Rumpflänge im Bild / Rumpflänge bei der Kalibrierung
 //
-// Ablauf: Mitte -> Pfeil -> Seite A -> Seite B (über die Mitte) -> Mitte (Ziel).
-// Reaktionszeit = Pfeil bis Bewegungsbeginn, Laufzeit = Bewegungsbeginn bis Ziel.
+// Ablauf: Mitte -> Pfeil -> Seite A (aus dem Bild) -> 1. Querung der Mitte -> Seite B (aus dem Bild)
+//         -> 2. Querung der Mitte = Ziel.
+// Reaktionszeit = Pfeil bis Bewegungsbeginn, Laufzeit = Bewegungsbeginn bis 2. Querung.
+// Eine Rumpflänge entspricht ca. 0,5 m.
 
-import { Ring, median, regress } from './util.js';
+import { Ring, median, regress, range } from './util.js';
 
 export const SHUFFLE_DEFAULTS = {
-  centerZone: 0.2, // |u| darunter gilt als "in der Mitte"
-  stableMs: 1000, // so lange ruhig in der Mitte stehen
-  stableRange: 0.08, // maximale Schwankung währenddessen
+  readyDx: 1.0, // "in der Mitte": innerhalb von ca. 0,5 m
+  readyLo: 0.8, // und etwa im kalibrierten Abstand zur Kamera
+  readyHi: 1.25,
+  stableMs: 1000,
+  stableRange: 0.5, // maximale Schwankung währenddessen (Rumpflängen)
   minDelayMs: 1500, // zufällige Wartezeit bis zum Pfeil
   maxDelayMs: 3500,
-  falseStart: 0.3, // Bewegung vor dem Pfeil = Fehlstart
-  restThreshold: 0.03, // darunter gilt als "noch in Ruhe"
-  fitLow: 0.04, // Fenster für die Schätzung des Bewegungsbeginns
-  onsetFit: 0.2, // ab hier gilt der Start als erkannt (Schätzung erfolgt rückwirkend)
+  falseStartDx: 2.7, // Bewegung vor dem Pfeil = Fehlstart
+  restThreshold: 0.25, // darunter gilt als "noch in Ruhe"
+  fitLow: 0.4, // Fenster für die Schätzung des Bewegungsbeginns
+  onsetFit: 1.8, // ab hier gilt der Start als erkannt (Schätzung erfolgt rückwirkend)
   minReactionMs: 100, // schneller ist nicht reaktiv, sondern geraten
   reactTimeoutMs: 4000,
-  turnThreshold: 0.7, // Wendepunkt erreicht, wenn |u| so weit auf der Seite ist
-  finishZone: 0.15, // Zielzone um die Mitte
+  awayDx: 3.0, // so weit (ca. 1,5 m) musst du auf jeder Seite von der Mitte weg gewesen sein
+  lossSideDx: 1.5, // Verschwindest du ab hier aus dem Bild, zählt das als "auf dieser Seite"
+  finishZone: 0.8, // Zielzone um die Mitte
   maxExtrapolateMs: 300,
   runTimeoutMs: 15000,
-  lostPoseMs: 1000,
+  lostPoseMs: 1000, // vor dem Start darf die Person nicht so lange fehlen
+  lostRunMs: 8000, // im Lauf ist Fehlen normal (außerhalb des Bildes)
   minRunMs: 2500,
   maxRunMs: 15000,
   resultHoldMs: 3500,
   noticeMs: 2500,
+  gapMs: 150, // länger ohne Person im Bild = Lücke (nicht darüber hinweg interpolieren)
 };
+
+const RUN = ['to_a', 'to_b', 'return'];
 
 export class ShuffleEngine {
   constructor({ params = {}, rand = Math.random, onEvent = () => {} } = {}) {
@@ -46,16 +56,19 @@ export class ShuffleEngine {
   }
 
   clear() {
-    this.enterT = null;
+    this.readySince = null;
     this.lostSince = null;
+    this.lastDx = null;
+    this.lastVisT = null;
+    this.segStartT = null;
     this.dir = 0;
     this.tArrow = null;
     this.tOnset = null;
-    this.tA = null;
-    this.tB = null;
+    this.tCross = null;
     this.planned = null;
-    this.uStart = 0;
-    this.uRef = 0;
+    this.dxStart = 0;
+    this.ref = 0;
+    this.excA = false;
     this.holdUntil = null;
   }
 
@@ -80,11 +93,11 @@ export class ShuffleEngine {
     if (this.state === 'go' && tPaint > this.tArrow && tPaint - this.tArrow < 200) this.tArrow = tPaint;
   }
 
-  update(t, u) {
+  update(t, s) {
     this.t = t;
-    const s = this.state;
-    if (s === 'idle') return;
-    if (s === 'hold') {
+    const p = this.p;
+    if (this.state === 'idle') return;
+    if (this.state === 'hold') {
       if (t >= this.holdUntil) {
         this.buf.clear();
         this.clear();
@@ -92,63 +105,83 @@ export class ShuffleEngine {
       }
       return;
     }
-    if (u == null) {
-      if (this.lostSince == null) this.lostSince = t;
-      this.enterT = null;
-      if (['countdown', 'go', 'to_a', 'to_b', 'return'].includes(s) && t - this.lostSince > this.p.lostPoseMs) {
+    if (RUN.includes(this.state) && t - this.tOnset > p.runTimeoutMs) {
+      return this.abort(this.timeoutReason());
+    }
+    if (s == null) {
+      if (this.lostSince == null) {
+        this.lostSince = t;
+        this.onLossStart();
+      }
+      this.readySince = null;
+      const inRun = RUN.includes(this.state);
+      if ((inRun || this.state === 'countdown' || this.state === 'go') && t - this.lostSince > (inRun ? p.lostRunMs : p.lostPoseMs)) {
         this.abort('Person nicht mehr erkannt');
       }
       return;
     }
     this.lostSince = null;
-    this.buf.push(t, u);
-    switch (s) {
+    this.lastDx = s.dx;
+    if (this.lastVisT == null || t - this.lastVisT > p.gapMs) this.segStartT = t; // neuer zusammenhängender Abschnitt
+    this.lastVisT = t;
+    this.buf.push(t, s.dx);
+    switch (this.state) {
       case 'wait_center':
-        return this.onWait(t, u);
+        return this.onWait(t, s);
       case 'countdown':
-        return this.onCountdown(t, u);
+        if (Math.abs(s.dx - this.dxStart) > p.falseStartDx) return this.abort('Fehlstart');
+        if (t >= this.planned) this.fire(t);
+        return;
       case 'go':
-        return this.onGo(t, u);
-      case 'to_a':
-        if (t - this.tOnset > this.p.runTimeoutMs) return this.abort('Zeitlimit überschritten');
-        if (u * this.dir >= this.p.turnThreshold) {
-          this.tA = this.cross((v) => v * this.dir, this.p.turnThreshold);
+        return this.onGo(t, s.dx);
+      case 'to_a': {
+        const away = s.dx * this.dir;
+        if (away >= p.awayDx) this.excA = true;
+        if (this.excA && away <= 0) {
+          // 1. Querung der Mitte: von der Pfeilseite kommend
+          this.tCross = this.cross((v) => v * this.dir, 0);
           this.setState('to_b');
         }
         return;
+      }
       case 'to_b':
-        if (t - this.tOnset > this.p.runTimeoutMs) return this.abort('Zeitlimit überschritten');
-        if (-u * this.dir >= this.p.turnThreshold) {
-          this.tB = this.cross((v) => -v * this.dir, this.p.turnThreshold);
-          this.setState('return');
-        }
+        if (-s.dx * this.dir >= p.awayDx) this.setState('return');
         return;
       case 'return':
-        if (t - this.tOnset > this.p.runTimeoutMs) return this.abort('Zeitlimit überschritten');
-        if (-u * this.dir <= this.p.finishZone) this.onFinish(t);
+        if (-s.dx * this.dir <= p.finishZone) this.onFinish();
         return;
       default:
     }
   }
 
-  onWait(t, u) {
-    const p = this.p;
-    if (Math.abs(u) > p.centerZone) {
-      this.enterT = null;
-      return;
-    }
-    if (this.enterT == null) this.enterT = t;
-    if (t - this.enterT < p.stableMs) return;
-    const vals = this.buf.since(t - p.stableMs).map((i) => i.v);
-    if (Math.max(...vals) - Math.min(...vals) > p.stableRange) return;
-    this.uStart = median(vals);
-    this.planned = t + p.minDelayMs + this.rand() * (p.maxDelayMs - p.minDelayMs);
-    this.setState('countdown');
+  timeoutReason() {
+    if (this.state === 'to_a') return this.excA ? 'Mitte nicht gequert' : 'Zu kurz gelaufen';
+    return 'Gegenseite nicht erreicht';
   }
 
-  onCountdown(t, u) {
-    if (Math.abs(u - this.uStart) > this.p.falseStart) return this.abort('Fehlstart');
-    if (t >= this.planned) this.fire(t);
+  /** Aus dem Bild verschwunden: Seite aus der letzten Position ableiten. */
+  onLossStart() {
+    const dx = this.lastDx;
+    if (dx == null || Math.abs(dx) < this.p.lossSideDx) return;
+    const side = Math.sign(dx);
+    if (this.state === 'to_a' && side === this.dir) this.excA = true;
+    else if (this.state === 'to_b' && side === -this.dir) this.setState('return');
+  }
+
+  onWait(t, s) {
+    const p = this.p;
+    const ready = Math.abs(s.dx) <= p.readyDx && s.r >= p.readyLo && s.r <= p.readyHi;
+    if (!ready) {
+      this.readySince = null;
+      return;
+    }
+    if (this.readySince == null) this.readySince = t;
+    if (t - this.readySince < p.stableMs) return;
+    const vals = this.buf.since(t - p.stableMs).map((i) => i.v);
+    if (range(vals) > p.stableRange) return;
+    this.dxStart = median(vals);
+    this.planned = t + p.minDelayMs + this.rand() * (p.maxDelayMs - p.minDelayMs);
+    this.setState('countdown');
   }
 
   fire(t) {
@@ -158,14 +191,15 @@ export class ShuffleEngine {
     this.lastDirs.push(dir);
     this.dir = dir;
     this.tArrow = t;
-    this.uRef = median(this.buf.since(t - 300).map((i) => i.v));
+    this.ref = median(this.buf.since(t - 300).map((i) => i.v));
+    this.excA = false;
     this.setState('go');
     this.emit('arrow', { dir, direction: dir < 0 ? 'left' : 'right' });
   }
 
-  onGo(t, u) {
+  onGo(t, dx) {
     const p = this.p;
-    const d = (u - this.uRef) * this.dir;
+    const d = (dx - this.ref) * this.dir;
     if (d <= -p.onsetFit) {
       return this.finishTrial({ valid: false, reason: 'Falsche Richtung', reaction_ms: null, run_ms: null });
     }
@@ -190,7 +224,7 @@ export class ShuffleEngine {
     const p = this.p;
     const ds = this.buf.items
       .filter((i) => i.t <= t && i.t >= this.tArrow - 1000)
-      .map((i) => ({ t: i.t, d: (i.v - this.uRef) * this.dir }));
+      .map((i) => ({ t: i.t, d: (i.v - this.ref) * this.dir }));
     let idx = -1;
     for (let i = ds.length - 1; i >= 0; i--) {
       if (ds[i].d <= p.restThreshold) {
@@ -200,29 +234,25 @@ export class ShuffleEngine {
     }
     const lastRest = idx >= 0 ? ds[idx].t : ds[0].t;
     const fallback = idx >= 0 && idx < ds.length - 1 ? (ds[idx].t + ds[idx + 1].t) / 2 : lastRest;
-    const fit = ds.filter((x, i) => i > idx && x.d >= p.fitLow && x.d <= p.onsetFit + 0.1);
+    const fit = ds.filter((x, i) => i > idx && x.d >= p.fitLow && x.d <= p.onsetFit + 0.9);
     let tOnset = fallback;
-    this.onsetMethod = 'threshold';
     if (fit.length >= 3) {
       const { k, mx, my } = regress(
         fit.map((x) => x.t),
         fit.map((x) => Math.sqrt(x.d)),
       );
-      if (k > 0) {
-        const t0 = mx - my / k;
-        tOnset = Math.min(t, Math.max(lastRest - 150, t0));
-        this.onsetMethod = 'fit';
-      }
+      if (k > 0) tOnset = Math.min(t, Math.max(lastRest - 150, mx - my / k));
     }
     this.tOnset = tOnset;
   }
 
-  /** Zeitpunkt, an dem fn(u) den Wert level erreicht, linear zwischen den letzten zwei Bildern. */
+  /** Zeitpunkt, an dem fn(dx) den Wert level erreicht, linear zwischen den letzten zwei sichtbaren Bildern
+   *  (auch über eine kurze Lücke hinweg). */
   cross(fn, level) {
     const it = this.buf.items;
     const b = it[it.length - 1];
     const a = it[it.length - 2];
-    if (!a) return b.t;
+    if (!a || b.t - a.t > this.p.gapMs) return b.t; // keine Interpolation über Lücken
     const fa = fn(a.v);
     const fb = fn(b.v);
     if (fb === fa) return b.t;
@@ -230,24 +260,40 @@ export class ShuffleEngine {
     return a.t + f * (b.t - a.t);
   }
 
-  onFinish(t) {
+  onFinish() {
     const p = this.p;
     const fn = (v) => -v * this.dir;
     const it = this.buf.items;
-    const cur = fn(it[it.length - 1].v);
+    const b = it[it.length - 1];
+    const a = it[it.length - 2];
+    const direct = a && b.t - a.t <= p.gapMs && fn(a.v) > p.finishZone;
     let tLine;
-    if (cur <= 0) {
-      tLine = this.cross(fn, 0);
+    if (direct) {
+      // Der Eintritt in die Zielzone liegt genau zwischen zwei aufeinanderfolgenden Bildern.
+      if (fn(b.v) <= 0) {
+        tLine = this.cross(fn, 0);
+      } else {
+        const tZone = this.cross(fn, p.finishZone);
+        const last = it.filter((i) => i.t >= this.segStartT).slice(-4); // nur Bilder seit dem Wiederauftauchen
+        const { k } = regress(
+          last.map((i) => i.t),
+          last.map((i) => fn(i.v)),
+        );
+        const vel = -k; // Annäherung an die Mitte pro ms
+        const ext = vel > 1e-5 ? Math.min(p.finishZone / vel, p.maxExtrapolateMs) : 0;
+        tLine = tZone + ext;
+      }
     } else {
-      const tZone = this.cross(fn, p.finishZone);
-      const last = it.slice(-4);
-      const { k } = regress(
-        last.map((i) => i.t),
-        last.map((i) => fn(i.v)),
+      // Die Person wurde erst in oder hinter der Zielzone wiedererkannt (z. B. am Bildrand zu spät).
+      // Der Durchgang liegt vor dem ersten Bild: aus den ersten Bildern des Abschnitts zurückrechnen.
+      const seg = it.filter((i) => i.t >= this.segStartT);
+      if (seg.length < 4) return; // noch zu wenige Bilder für eine Geschwindigkeit
+      const first = seg.slice(0, 4);
+      const { k, mx, my } = regress(
+        first.map((i) => i.t),
+        first.map((i) => fn(i.v)),
       );
-      const vel = -k; // Annäherung an die Mitte pro ms
-      const ext = vel > 1e-5 ? Math.min(p.finishZone / vel, p.maxExtrapolateMs) : 0;
-      tLine = tZone + ext;
+      tLine = k < 0 ? Math.max(first[0].t - 400, mx - my / k) : first[0].t;
     }
     const run = tLine - this.tOnset;
     const reaction = this.tOnset - this.tArrow;
@@ -265,9 +311,9 @@ export class ShuffleEngine {
       reason,
       reaction_ms: Math.round(reaction),
       run_ms: Math.round(run),
-      total_ms: Math.round(tLine - this.tArrow),
-      split_a_ms: Math.round(this.tA - this.tOnset),
-      split_b_ms: Math.round(this.tB - this.tOnset),
+      total_ms: Math.round(reaction) + Math.round(run), // Pfeil bis Ziel
+      split_a_ms: Math.round(this.tCross - this.tOnset), // bis zur 1. Querung der Mitte
+      split_b_ms: null,
     });
   }
 

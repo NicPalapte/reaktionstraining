@@ -28,9 +28,15 @@ export class PoseTracker {
   async start(video, onStatus = () => {}) {
     this.video = video;
     onStatus('Kamera wird gestartet …');
+    const portrait = window.innerHeight > window.innerWidth;
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: false,
-      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 60 } },
+      video: {
+        facingMode: 'user',
+        width: { ideal: portrait ? 720 : 1280 },
+        height: { ideal: portrait ? 1280 : 720 },
+        frameRate: { ideal: 30, max: 60 },
+      },
     });
     video.srcObject = this.stream;
     video.muted = true;

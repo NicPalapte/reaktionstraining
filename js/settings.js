@@ -5,7 +5,6 @@ export const DEFAULT_SETTINGS = {
   voice: true,
   rounds: 6, // Durchgänge pro Satz (5-10-5)
   commandRounds: 12, // Befehle pro Satz
-  turnThreshold: 0.7, // Wendepunkt: Anteil des Wegs zur Linie
   minDelay: 1.5,
   maxDelay: 3.5,
   cmdLeft: true,

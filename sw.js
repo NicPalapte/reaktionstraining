@@ -1,5 +1,5 @@
 // Service Worker: App-Dateien und Erkennungsmodell werden gecacht, danach läuft alles offline.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const APP_CACHE = `app-${VERSION}`;
 const LIB_CACHE = 'libs-mediapipe-0.10.21';
 
