@@ -4,9 +4,11 @@
 //   go    grün: loslaufen und zurück in die Mitte (Reaktionszeit wird geschätzt)
 //   stop  rot: stehen bleiben (richtig, wenn du die Haltezeit stehen bleibst)
 //   flip  grün, kippt nach kurzer Zeit auf rot: sofort stoppen
+// Optional (splitGapMs > 0): vorher kommt "Split!", der Pfeil folgt nach kurzer Pause. Wer in der Pause
+// schon losläuft, hat einen Fehlstart. Gemessen wird immer ab dem Pfeil.
 //
 // Eingabe pro Kamerabild: update(t, s) mit s = { dx, r } oder null, wie bei CommandEngine.
-// Ereignisse: state, signal {type, command}, flip, result {type, command, correct, reaction_ms, reason}, round, timeout
+// Ereignisse: state, split, signal {type, command}, flip, result {type, command, correct, reaction_ms, reason}, round, timeout
 
 import { CommandEngine, COMMAND_DEFAULTS } from './command-engine.js';
 import { ShuffleEngine, SHUFFLE_DEFAULTS } from './shuffle-engine.js';
@@ -25,6 +27,7 @@ export const DECOY_DEFAULTS = {
   holdMs: 1500, // so lange muss man bei rot stehen bleiben
   stopAwayDx: 0.9, // Auslenkung, ab der "stehen bleiben" gescheitert ist
   minReactionMs: 100,
+  splitGapMs: 0, // 0 = ohne Splitstep; sonst mittlere Pause zwischen "Split!" und Pfeil (zufällig 0,8x bis 1,2x)
 };
 
 const TYPES = ['go', 'stop', 'flip'];
@@ -59,22 +62,35 @@ export class DecoyEngine extends CommandEngine {
     return pool[pool.length - 1];
   }
 
+  /** Aufgabe wählen; mit Splitstep zuerst "Split!", sonst gleich der Pfeil. */
   fire(t) {
     const list = this.p.commands.length ? this.p.commands : ['left', 'right', 'front'];
-    const cmd = list[Math.floor(this.rand() * list.length)];
+    this.cmd = list[Math.floor(this.rand() * list.length)];
     this.type = this.pickType();
     this.typeHistory.push(this.type);
     this.issued += 1;
+    this.dir = this.cmd === 'left' ? -1 : this.cmd === 'right' ? 1 : 0;
+    this.awaySince = null;
+    this.tCommand = t;
+    if (this.p.splitGapMs > 0) {
+      this.ref0 = median(this.buf.since(t - 300).map((i) => i.v));
+      this.splitAt = t + this.p.splitGapMs * (0.8 + 0.4 * this.rand());
+      this.setState('split');
+      this.emit('split', { issued: this.issued, gap_ms: Math.round(this.splitAt - t) });
+    } else {
+      this.signal(t);
+    }
+  }
+
+  signal(t) {
     this.tArrow = t;
     this.tCommand = t;
-    this.cmd = cmd;
-    this.dir = cmd === 'left' ? -1 : cmd === 'right' ? 1 : 0;
     this.ref = median(this.buf.since(t - 300).map((i) => i.v));
     this.awaySince = null;
     this.flipped = false;
     this.tFlip = this.type === 'flip' ? t + this.p.flipMinMs + this.rand() * (this.p.flipMaxMs - this.p.flipMinMs) : null;
     this.setState('command');
-    this.emit('signal', { type: this.type, command: cmd, issued: this.issued });
+    this.emit('signal', { type: this.type, command: this.cmd, issued: this.issued });
   }
 
   finish(t, correct, reason, reaction = null) {
@@ -82,6 +98,29 @@ export class DecoyEngine extends CommandEngine {
     k[1] += 1;
     if (correct) k[0] += 1;
     this.emit('result', { type: this.type, command: this.cmd, correct, reaction_ms: reaction, reason });
+  }
+
+  /** Pause zwischen "Split!" und Pfeil: still bleiben (Hüpfen am Ort ist erlaubt). */
+  updateSplit(t, s) {
+    const p = this.p;
+    const lost = s == null;
+    if (lost) this.lostSince ??= t;
+    else {
+      this.lostSince = null;
+      this.buf.push(t, s.dx);
+    }
+    const away =
+      (lost && t - this.lostSince >= p.lostAwayMs) || (!lost && (Math.abs(s.dx - this.ref0) > p.stopAwayDx || s.r < p.awayLo || s.r > p.awayHi));
+    if (away) this.awaySince ??= t;
+    else this.awaySince = null;
+    if (this.awaySince != null && t - this.awaySince >= 200) {
+      this.type = 'go';
+      this.typeHistory[this.typeHistory.length - 1] = 'go';
+      this.finish(t, false, 'Zu früh gestartet');
+      this.toReturn();
+      return;
+    }
+    if (t >= this.splitAt) this.signal(t);
   }
 
   /** Zurück zur Bereitschaft; nach einem Lauf zählt die Runde erst, wenn man wieder in der Mitte steht. */
@@ -92,6 +131,7 @@ export class DecoyEngine extends CommandEngine {
   }
 
   update(t, s) {
+    if (this.state === 'split') return this.updateSplit(t, s);
     if (this.state !== 'command') return super.update(t, s);
     const p = this.p;
     const lost = s == null;

@@ -230,3 +230,8 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 }
 .couch-pads .pad.hit { background: var(--ball); color: var(--on-ball); }
 #screen-couch .overlay-card { position: absolute; }
+
+/* ---------- Kamerabild ausblenden (Erkennung läuft weiter, Video bleibt aber im Layout) ---------- */
+.frame.cam-off { opacity: 0; pointer-events: none; }
+.track-dot { width: 14px; height: 14px; border-radius: 50%; background: #ef4b4b; box-shadow: 0 0 0 4px rgba(239, 75, 75, 0.25); align-self: center; margin: 0 auto 0 14px; }
+.track-dot[data-on="1"] { background: var(--go); box-shadow: 0 0 0 4px rgba(62, 207, 122, 0.25); }

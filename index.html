@@ -40,32 +40,32 @@
     </span>
   </button>
 
-  <button class="tile" id="start-commands" type="button">
-    <svg class="court" viewBox="0 0 240 90" aria-hidden="true">
-      <rect x="4" y="4" width="232" height="82" rx="6" class="court-bg"/>
-      <circle cx="120" cy="45" r="5" class="dot"/>
-      <path d="M112 45 H56 M62 39 L54 45 L62 51" class="run"/>
-      <path d="M128 45 H184 M178 39 L186 45 L178 51" class="run"/>
-      <path d="M120 37 V14 M114 20 L120 12 L126 20" class="run"/>
-    </svg>
-    <span class="tile-body">
-      <span class="tile-title">Richtungsbefehle</span>
-      <span class="tile-text">Links, rechts oder vorne. Der nächste Befehl kommt, sobald du wieder bereit stehst.</span>
-      <span class="tile-meta" id="meta-commands"></span>
-    </span>
-  </button>
-
   <button class="tile" id="start-decoy" type="button">
     <svg class="court" viewBox="0 0 240 90" aria-hidden="true">
       <rect x="4" y="4" width="232" height="82" rx="6" class="court-bg"/>
       <circle cx="120" cy="45" r="5" class="dot"/>
-      <path d="M60 45 H20 M26 39 L18 45 L26 51" class="run go"/>
-      <path d="M180 45 H220 M214 39 L222 45 L214 51" class="run stopc"/>
+      <path d="M112 45 H52 M58 39 L50 45 L58 51" class="run go"/>
+      <path d="M128 45 H188 M182 39 L190 45 L182 51" class="run stopc"/>
+      <path d="M120 37 V14 M114 20 L120 12 L126 20" class="run"/>
     </svg>
     <span class="tile-body">
-      <span class="tile-title">Kreuzvorhaben</span>
-      <span class="tile-text">Grün: los. Rot: stehen bleiben. Manchmal kippt Grün auf Rot, dann nicht reinfallen.</span>
+      <span class="tile-title">Reaktionsdrill</span>
+      <span class="tile-text">Pfeil links, rechts oder vorne: laufen. Rot: nichts tun. Optional mit Fake-Signalen.</span>
       <span class="tile-meta" id="meta-decoy"></span>
+    </span>
+  </button>
+
+  <button class="tile" id="start-split" type="button">
+    <svg class="court" viewBox="0 0 240 90" aria-hidden="true">
+      <rect x="4" y="4" width="232" height="82" rx="6" class="court-bg"/>
+      <circle cx="120" cy="52" r="5" class="dot"/>
+      <path d="M96 38 Q120 14 144 38" class="run"/>
+      <path d="M150 62 H206 M200 56 L208 62 L200 68" class="run go"/>
+    </svg>
+    <span class="tile-body">
+      <span class="tile-title">Splitstep-Drill</span>
+      <span class="tile-text">„Split!“, kurze Pause, dann die Richtung. Der Reaktionsdrill mit Splitstep.</span>
+      <span class="tile-meta" id="meta-split"></span>
     </span>
   </button>
 
@@ -101,8 +101,7 @@
 
   <div class="seg" role="tablist" aria-label="Übung">
     <button type="button" role="tab" class="on" data-ex="shuffle_5_10_5">5-10-5</button>
-    <button type="button" role="tab" data-ex="commands">Befehle</button>
-    <button type="button" role="tab" data-ex="decoy_court">Kreuz</button>
+    <button type="button" role="tab" data-ex="decoy_court">Reaktion</button>
     <button type="button" role="tab" data-ex="decoy_couch">Spiel</button>
   </div>
 
@@ -166,17 +165,21 @@
   </div>
 
   <div class="card form">
-    <h2>Befehle</h2>
-    <label class="field"><span>Befehle pro Satz</span><input type="number" min="1" max="60" inputmode="numeric" data-key="commandRounds"></label>
+    <h2>Reaktionsdrill</h2>
+    <label class="field"><span>Aufgaben pro Satz</span><input type="number" min="4" max="60" inputmode="numeric" data-key="decoyRounds"></label>
     <label class="field switch"><span>Links</span><input type="checkbox" data-key="cmdLeft"></label>
     <label class="field switch"><span>Rechts</span><input type="checkbox" data-key="cmdRight"></label>
     <label class="field switch"><span>Vorne</span><input type="checkbox" data-key="cmdFront"></label>
+    <label class="field switch"><span>Rote Aufgaben (nichts tun)</span><input type="checkbox" data-key="decoyStop"></label>
+    <label class="field switch"><span>Fake-Signale (Grün kippt auf Rot)</span><input type="checkbox" data-key="decoyFlip"></label>
+    <label class="field switch"><span>Splitstep vor dem Pfeil</span><input type="checkbox" data-key="splitStep"></label>
+    <label class="field"><span>Pause nach „Split!“ (s)</span><input type="number" min="0.3" max="2" step="0.1" inputmode="decimal" data-key="splitGap"></label>
+    <p class="hint">Der Splitstep-Drill auf der Startseite läuft immer mit Splitstep.</p>
   </div>
 
   <div class="card form">
-    <h2>Kreuzvorhaben</h2>
-    <label class="field"><span>Aufgaben pro Satz</span><input type="number" min="4" max="60" inputmode="numeric" data-key="decoyRounds"></label>
-    <p class="hint">Richtungen wie bei den Befehlen. Pfeil grün = laufen, rot = stehen bleiben.</p>
+    <label class="field switch"><span>Kamerabild im Drill anzeigen</span><input type="checkbox" data-key="showCamera"></label>
+    <p class="hint">Aus: Nach der Kalibrierung siehst du nur die Signale, die Erkennung läuft unsichtbar weiter. Ein kleiner Punkt zeigt, ob du erkannt wirst. Die Seite muss geöffnet und der Bildschirm an bleiben.</p>
   </div>
 
   <div class="card form" id="account">
@@ -250,6 +253,7 @@
   <div class="hud" id="hud" data-mode="">
     <div class="hud-top">
       <button type="button" class="icon-btn" id="btn-stop" aria-label="Übung beenden">✕</button>
+      <div class="track-dot" id="track-dot" data-on="0" hidden title="Person erkannt"></div>
       <div class="hud-count" id="hud-count"></div>
     </div>
     <div class="hud-center">

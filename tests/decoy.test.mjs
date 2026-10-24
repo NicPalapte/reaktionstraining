@@ -12,9 +12,9 @@ const TORSO_M = 0.5;
 const OUT_M = 2.4;
 
 /** Läufer für den Platz-Drill. behave(type) -> 'run' | 'still' */
-function runDecoy({ weights, behave, n = 6, seed = 3, reactS = 0.3, commands }) {
+function runDecoy({ weights, behave, n = 6, seed = 3, reactS = 0.3, commands, params = {}, startAt = 'signal' }) {
   const ev = [];
-  const eng = new DecoyEngine({ params: { weights, ...(commands ? { commands } : {}) }, rand: lcg(seed), onEvent: (name, d) => ev.push([name, d]) });
+  const eng = new DecoyEngine({ params: { weights, ...(commands ? { commands } : {}), ...params }, rand: lcg(seed), onEvent: (name, d) => ev.push([name, d]) });
   eng.start();
   let t = 0;
   let traj = null;
@@ -180,4 +180,69 @@ test('Couch: Fake-Signal ignorieren ist richtig, Antippen kostet ein Leben, dana
   g2.tap(t + 100, g2.cmd);
   assert.equal(g2.lives, COUCH.lives - 1);
   assert.ok(levelParams(1).pFake === 0 && levelParams(4).pFake > 0);
+});
+
+// ---------- Splitstep ----------
+function runSplit({ n = 4, seed = 4, reactS = 0.28, jumpAtSplit = false, runAtSplit = false }) {
+  const ev = [];
+  const eng = new DecoyEngine({
+    params: { weights: { go: 1 }, commands: ['left', 'right'], splitGapMs: 700 },
+    rand: lcg(seed),
+    onEvent: (name, d) => ev.push([name, d, performance.now ? null : null]),
+  });
+  eng.start();
+  let t = 0;
+  let traj = null;
+  let tStart = 0;
+  let nSplit = 0;
+  let nSig = 0;
+  const times = [];
+  const noise = lcg(seed + 9);
+  for (let step = 0; step < 30 * 300 && ev.filter((e) => e[0] === 'result').length < n; step++, t += 33) {
+    let s = traj ? traj.sample((t - tStart) / 1000) : { dx: 0, r: 1 };
+    // Hüpfen am Ort während der Pause: Rumpflänge/Höhe ändert sich leicht, dx bleibt
+    if (jumpAtSplit && eng.state === 'split') s = { dx: s.dx, r: 1 + 0.05 * Math.sin(t / 60) };
+    const inp = s.r > 1.7 || Math.abs(s.dx) * TORSO_M > OUT_M ? null : { dx: s.dx + (noise() - 0.5) * 0.06, r: s.r };
+    eng.update(t, inp);
+    const sp = ev.filter((e) => e[0] === 'split').length;
+    const sg = ev.filter((e) => e[0] === 'signal').length;
+    if (sp > nSplit) {
+      nSplit = sp;
+      times.push({ split: t });
+      if (runAtSplit) {
+        tStart = t;
+        traj = commandTrajectory({ command: eng.cmd, reactS: 0.1 });
+      }
+    }
+    if (sg > nSig) {
+      nSig = sg;
+      times[times.length - 1].signal = t;
+      if (!runAtSplit) {
+        tStart = t;
+        traj = commandTrajectory({ command: eng.cmd, reactS });
+      }
+    }
+    if (traj && (t - tStart) / 1000 > traj.endS + 0.5 && eng.state !== 'command' && eng.state !== 'split') traj = null;
+  }
+  return { ev, times, results: ev.filter((e) => e[0] === 'result').map((e) => e[1]) };
+}
+
+test('Splitstep: erst "Split!", der Pfeil folgt nach der Pause, Reaktion zählt ab dem Pfeil', () => {
+  const { times, results } = runSplit({ reactS: 0.28 });
+  assert.equal(results.length, 4);
+  for (const x of times.filter((t) => t.signal)) {
+    const gap = x.signal - x.split;
+    assert.ok(gap >= 700 * 0.8 - 40 && gap <= 700 * 1.2 + 70, `Pause ${gap}`);
+  }
+  for (const r of results) {
+    assert.equal(r.correct, true, JSON.stringify(r));
+    assert.ok(Math.abs(r.reaction_ms - 280) < 120, `Reaktion ${r.reaction_ms}`);
+  }
+});
+
+test('Splitstep: Hüpfen am Ort ist erlaubt, Losrennen vor dem Pfeil ist ein Fehlstart', () => {
+  const ok = runSplit({ jumpAtSplit: true });
+  assert.ok(ok.results.every((r) => r.correct), JSON.stringify(ok.results));
+  const bad = runSplit({ runAtSplit: true, n: 2 });
+  assert.ok(bad.results.every((r) => !r.correct && /früh/.test(r.reason)), JSON.stringify(bad.results));
 });

@@ -51,11 +51,11 @@ async function refreshHome() {
   $('#meta-shuffle').textContent = trials.length
     ? `Bestzeit ${fmtS(Math.min(...trials.map((t) => t.run_ms)))} · ${trials.length} Durchgänge`
     : 'Noch keine Zeiten';
-  const sessions = (await store.listSessions()).filter((s) => s.exercise === EX_COMMANDS);
-  $('#meta-commands').textContent = sessions.length ? `${sessions.length} Einheiten` : 'Noch keine Einheiten';
   const all = await store.listSessions();
   const dec = all.filter((x) => x.exercise === EX_DECOY);
   $('#meta-decoy').textContent = dec.length ? `${dec.length} Einheiten` : 'Noch keine Einheiten';
+  const spl = dec.filter((x) => x.meta?.split);
+  $('#meta-split').textContent = spl.length ? `${spl.length} Einheiten` : 'Noch keine Einheiten';
   const cou = all.filter((x) => x.exercise === EX_COUCH);
   $('#meta-couch').textContent = cou.length ? `Highscore ${Math.max(...cou.map((x) => x.meta?.score ?? 0))} · ${cou.length} Spiele` : 'Noch kein Spiel';
 }
@@ -111,8 +111,9 @@ document.addEventListener('visibilitychange', () => {
 
 // ---------- Training ----------
 class Session {
-  constructor(kind) {
+  constructor(kind, opts = {}) {
     this.kind = kind;
+    this.forceSplit = !!opts.split;
     this.exercise = kind === 'shuffle' ? EX_SHUFFLE : kind === 'decoy' ? EX_DECOY : EX_COMMANDS;
     this.decoyReact = [];
     this.sessionId = newSessionId();
@@ -204,10 +205,18 @@ class Session {
     $('#hud').dataset.mode = mode;
   }
 
+  /** Kamerabild nach der Kalibrierung ausblenden (läuft unsichtbar weiter); Punkt zeigt, ob die Person erkannt wird. */
+  applyCamera(running) {
+    const hide = running && !settings.showCamera;
+    $('#frame').classList.toggle('cam-off', hide);
+    $('#track-dot').hidden = !hide;
+  }
+
   // ----- Kalibrierung -----
   askCalibration() {
     this.calibrator = new Calibrator();
     this.phase = 'calibrate';
+    this.applyCamera(false);
     $('#cal-meter').hidden = false;
     const saved = loadCalibration();
     const btn = $('#btn-use-cal');
@@ -232,6 +241,7 @@ class Session {
     this.cal = cal;
     this.phase = 'run';
     if (fresh) saveCalibration(cal);
+    this.applyCamera(true);
     $('#cal-meter').hidden = true;
     $('#btn-use-cal').hidden = true;
     this.toSample = makeSample(cal);
@@ -254,8 +264,16 @@ class Session {
       });
     } else if (this.kind === 'decoy') {
       const commands = [settings.cmdLeft && 'left', settings.cmdRight && 'right', settings.cmdFront && 'front'].filter(Boolean);
+      const weights = { go: 0.55, stop: settings.decoyStop ? 0.25 : 0, flip: settings.decoyFlip ? 0.2 : 0 };
+      this.split = this.forceSplit || settings.splitStep;
       this.eng = new DecoyEngine({
-        params: { commands: commands.length ? commands : ['left', 'right', 'front'], minDelayMs: Math.min(minDelayMs, 2000), maxDelayMs: Math.min(maxDelayMs, 3500) },
+        params: {
+          commands: commands.length ? commands : ['left', 'right', 'front'],
+          weights,
+          splitGapMs: this.split ? Math.round(settings.splitGap * 1000) : 0,
+          minDelayMs: Math.min(minDelayMs, 2000),
+          maxDelayMs: Math.min(maxDelayMs, 3500),
+        },
         onEvent: (n, d) => this.onDecoyEvent(n, d),
       });
     } else {
@@ -286,6 +304,7 @@ class Session {
   // ----- Kamerabild -----
   onSample(t, s) {
     this.drawOverlay(s);
+    if (this.phase === 'run') $('#track-dot').dataset.on = s ? '1' : '0';
     if (this.phase === 'calibrate') this.stepCalibration(t, s);
     else if (this.phase === 'run' && this.eng) {
       this.eng.update(t, s ? this.toSample(s) : null);
@@ -340,11 +359,16 @@ class Session {
   showSignal(direction, kind = '') {
     $('#signal').dataset.kind = kind;
     const svg = $('#signal-arrow');
+    svg.toggleAttribute('hidden', kind === 'split');
     svg.setAttribute('class', direction === 'left' ? 'left' : direction === 'front' ? 'front' : '');
-    $('#signal-label').textContent = kind === 'stop' ? 'STEHEN' : direction === 'left' ? 'LINKS' : direction === 'right' ? 'RECHTS' : 'VORNE';
+    $('#signal-label').textContent = kind === 'split' ? 'SPLIT!' : kind === 'stop' ? 'STEHEN' : direction === 'left' ? 'LINKS' : direction === 'right' ? 'RECHTS' : 'VORNE';
     $('#result').hidden = true;
     $('#signal').hidden = false;
-    if (settings.sound) audio.beep(1046, 160);
+    if (settings.sound) audio.beep(kind === 'split' ? 784 : 1046, kind === 'split' ? 120 : 160);
+    if (kind === 'split') {
+      if (settings.voice) audio.speak('Split');
+      return;
+    }
     if ((this.kind === 'commands' || (this.kind === 'decoy' && kind === 'go')) && settings.voice) audio.speak(dirLabel[direction]);
     // Zeitpunkt, an dem der Pfeil wirklich auf dem Bildschirm stand
     const eng = this.eng;
@@ -456,7 +480,8 @@ class Session {
           this.hud(fb?.big ?? 'Mitte', fb?.sub ?? 'Stell dich hin und bleib kurz ruhig.', fb ? 'run' : 'wait');
         } else if (d.state === 'countdown') {
           this.hideSignal();
-          this.hud('Bereit', 'Grün: los. Rot: stehen bleiben.', 'ready');
+          const rules = settings.decoyStop || settings.decoyFlip ? 'Grün: los. Rot: stehen bleiben.' : 'Gleich kommt ein Pfeil.';
+          this.hud('Bereit', this.split ? `Erst „Split!“, dann die Richtung. ${rules}` : rules, 'ready');
         } else if (d.state === 'away') {
           this.hideSignal();
           this.hud(fb?.big ?? 'Zurück', fb?.sub ?? 'Zurück in die Mitte.', 'run');
@@ -464,6 +489,10 @@ class Session {
         this.fb = null;
         return;
       }
+      case 'split':
+        this.hud('', '', 'command');
+        this.showSignal(null, 'split');
+        return;
       case 'signal':
         this.hud('', '', 'command');
         this.showSignal(d.command, d.type === 'stop' ? 'stop' : 'go');
@@ -575,7 +604,7 @@ class Session {
         rounds: done,
         duration_ms: Date.now() - this.setStart,
         avg_reaction_ms: this.decoyReact.length ? Math.round(avg(this.decoyReact)) : null,
-        meta: { ...this.eng.stats },
+        meta: { ...this.eng.stats, split: !!this.split },
       });
     } else {
       const done = this.eng?.rounds ?? 0;
@@ -665,16 +694,16 @@ class Session {
   }
 }
 
-function startSession(kind) {
+function startSession(kind, opts) {
   audio.unlock();
-  session = new Session(kind);
+  session = new Session(kind, opts);
   window.__session = session;
   session.start();
 }
 
 $('#start-shuffle').addEventListener('click', () => startSession('shuffle'));
-$('#start-commands').addEventListener('click', () => startSession('commands'));
 $('#start-decoy').addEventListener('click', () => startSession('decoy'));
+$('#start-split').addEventListener('click', () => startSession('decoy', { split: true }));
 const couch = initCouch({ store, cloud, audio, exCouch: EX_COUCH, settings: () => settings, onExit: () => show('home') });
 $('#start-couch').addEventListener('click', () => {
   audio.unlock();
@@ -718,7 +747,7 @@ async function renderHistory() {
   document.querySelectorAll('.seg [data-ex]').forEach((b) => b.classList.toggle('on', b.dataset.ex === histEx));
   document.querySelectorAll('#metric-seg button').forEach((b) => b.classList.toggle('on', b.dataset.metric === histMetric));
   $('#hist-shuffle').hidden = histEx !== EX_SHUFFLE;
-  $('#hist-commands').hidden = histEx !== EX_COMMANDS;
+  $('#hist-commands').hidden = true;
   $('#hist-games').hidden = histEx !== EX_DECOY && histEx !== EX_COUCH;
   $('#store-note').textContent = cloud.user ? 'Gespeichert auf diesem Gerät und in deinem Konto.' : 'Gespeichert nur auf diesem Gerät.';
 
@@ -758,8 +787,8 @@ async function renderHistory() {
           .join('')
       : '<p class="empty">Noch keine Sätze.</p>';
   } else if (histEx === EX_DECOY || histEx === EX_COUCH) {
-    const sessions = (await store.listSessions()).filter((s) => s.exercise === histEx).reverse();
-    $('#hist-games-title').textContent = histEx === EX_DECOY ? 'Einheiten Kreuzvorhaben' : 'Reaktionsspiel';
+    const sessions = (await store.listSessions()).filter((s) => s.exercise === histEx || (histEx === EX_DECOY && s.exercise === EX_COMMANDS)).reverse();
+    $('#hist-games-title').textContent = histEx === EX_DECOY ? 'Einheiten Reaktionsdrill' : 'Reaktionsspiel';
     const ok = (m) => (m ? ['go', 'stop', 'flip'].reduce((a, k) => a + (m[k]?.[0] ?? 0), 0) : null);
     const tot = (m) => (m ? ['go', 'stop', 'flip'].reduce((a, k) => a + (m[k]?.[1] ?? 0), 0) : null);
     $('#hist-games-list').innerHTML = sessions.length
@@ -768,7 +797,9 @@ async function renderHistory() {
           .map((x) => {
             const react = x.avg_reaction_ms != null ? ` · Ø ${fmtMs(x.avg_reaction_ms)}` : '';
             if (histEx === EX_COUCH) return `<div class="row"><span class="d">${dayKey(x.created_at)}</span><span>${x.meta?.score ?? 0} Punkte</span><span>Level ${x.meta?.level ?? 1}${react}</span></div>`;
-            return `<div class="row"><span class="d">${dayKey(x.created_at)}</span><span>${ok(x.meta)} / ${tot(x.meta)} richtig</span><span>${fmtDur(x.duration_ms)}${react}</span></div>`;
+            if (x.exercise === EX_COMMANDS) return `<div class="row"><span class="d">${dayKey(x.created_at)}</span><span>${x.rounds} Befehle</span><span>${fmtDur(x.duration_ms)}</span></div>`;
+            const sp = x.meta?.split ? ' · Split' : '';
+            return `<div class="row"><span class="d">${dayKey(x.created_at)}</span><span>${ok(x.meta)} / ${tot(x.meta)} richtig${sp}</span><span>${fmtDur(x.duration_ms)}${react}</span></div>`;
           })
           .join('')
       : '<p class="empty">Noch nichts gespielt.</p>';

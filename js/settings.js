@@ -5,7 +5,12 @@ export const DEFAULT_SETTINGS = {
   voice: true,
   rounds: 6, // Durchgänge pro Satz (5-10-5)
   commandRounds: 12, // Befehle pro Satz
-  decoyRounds: 16, // Aufgaben pro Satz (Kreuzvorhaben)
+  decoyRounds: 16, // Aufgaben pro Satz (Reaktionsdrill)
+  decoyStop: true, // rote Aufgaben: nichts tun
+  decoyFlip: true, // Fake-Signale: Grün kippt auf Rot
+  splitStep: false, // vor dem Pfeil kommt "Split!"
+  splitGap: 0.7, // mittlere Pause zwischen Split und Pfeil (s)
+  showCamera: false, // Kamerabild nach der Kalibrierung anzeigen
   minDelay: 1.5,
   maxDelay: 3.5,
   cmdLeft: true,
