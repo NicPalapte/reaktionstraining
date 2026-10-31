@@ -91,7 +91,7 @@ Tabellen siehe `supabase/schema.sql`). „Alles löschen“ löscht bei angemeld
 - **Reaktionsdrill** (Platz, mit Kamera, `js/decoy-engine.js`, ersetzt Richtungsbefehle und Kreuzvorhaben): Pfeil links/rechts/vorne = loslaufen
   und zurück (Reaktionszeit wird geschätzt), rot = nichts tun, optional kippt Grün nach 0,2–0,4 s auf Rot (Fake). Rote Aufgaben,
   Fake-Signale und Splitstep lassen sich in den Einstellungen schalten. **Splitstep:** erst „Split!“ (Ton, Sprache, Anzeige), nach kurzer
-  Pause der Pfeil; gemessen wird ab dem Pfeil, Losrennen vor dem Pfeil ist ein Fehlstart. Der **Splitstep-Drill** startet immer mit Splitstep.
+  Pause der Pfeil; gemessen wird ab dem Pfeil, Losrennen vor dem Pfeil ist ein Fehlstart.
   Das Kamerabild ist nach der Kalibrierung ausgeblendet (Einstellung „Kamerabild im Drill anzeigen“), ein Punkt zeigt die Erkennung. Gespeichert wird pro Aufgabe richtig/falsch
   (`reason` = `go`, `stop`, `flip` bzw. `typ:fehler`).
 - **Reaktionsspiel** (Couch, ohne Kamera, `js/couch-engine.js`): links/rechts/vorne antippen. Grün = tippen, Rot = nicht tippen,

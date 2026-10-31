@@ -50,22 +50,8 @@
     </svg>
     <span class="tile-body">
       <span class="tile-title">Reaktionsdrill</span>
-      <span class="tile-text">Pfeil links, rechts oder vorne: laufen. Rot: nichts tun. Optional mit Fake-Signalen.</span>
+      <span class="tile-text">Pfeil links, rechts oder vorne: laufen. Rot: nichts tun. Optional mit Fake-Signalen und Splitstep.</span>
       <span class="tile-meta" id="meta-decoy"></span>
-    </span>
-  </button>
-
-  <button class="tile" id="start-split" type="button">
-    <svg class="court" viewBox="0 0 240 90" aria-hidden="true">
-      <rect x="4" y="4" width="232" height="82" rx="6" class="court-bg"/>
-      <circle cx="120" cy="52" r="5" class="dot"/>
-      <path d="M96 38 Q120 14 144 38" class="run"/>
-      <path d="M150 62 H206 M200 56 L208 62 L200 68" class="run go"/>
-    </svg>
-    <span class="tile-body">
-      <span class="tile-title">Splitstep-Drill</span>
-      <span class="tile-text">„Split!“, kurze Pause, dann die Richtung. Der Reaktionsdrill mit Splitstep.</span>
-      <span class="tile-meta" id="meta-split"></span>
     </span>
   </button>
 
@@ -174,7 +160,7 @@
     <label class="field switch"><span>Fake-Signale (Grün kippt auf Rot)</span><input type="checkbox" data-key="decoyFlip"></label>
     <label class="field switch"><span>Splitstep vor dem Pfeil</span><input type="checkbox" data-key="splitStep"></label>
     <label class="field"><span>Pause nach „Split!“ (s)</span><input type="number" min="0.3" max="2" step="0.1" inputmode="decimal" data-key="splitGap"></label>
-    <p class="hint">Der Splitstep-Drill auf der Startseite läuft immer mit Splitstep.</p>
+    <p class="hint">Mit Splitstep kommt vor jedem Pfeil „Split!“, gemessen wird ab dem Pfeil.</p>
   </div>
 
   <div class="card form">

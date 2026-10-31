@@ -53,9 +53,8 @@ async function refreshHome() {
     : 'Noch keine Zeiten';
   const all = await store.listSessions();
   const dec = all.filter((x) => x.exercise === EX_DECOY);
-  $('#meta-decoy').textContent = dec.length ? `${dec.length} Einheiten` : 'Noch keine Einheiten';
-  const spl = dec.filter((x) => x.meta?.split);
-  $('#meta-split').textContent = spl.length ? `${spl.length} Einheiten` : 'Noch keine Einheiten';
+  const splitNote = settings.splitStep ? ' · mit Splitstep' : '';
+  $('#meta-decoy').textContent = (dec.length ? `${dec.length} Einheiten` : 'Noch keine Einheiten') + splitNote;
   const cou = all.filter((x) => x.exercise === EX_COUCH);
   $('#meta-couch').textContent = cou.length ? `Highscore ${Math.max(...cou.map((x) => x.meta?.score ?? 0))} · ${cou.length} Spiele` : 'Noch kein Spiel';
 }
@@ -111,9 +110,8 @@ document.addEventListener('visibilitychange', () => {
 
 // ---------- Training ----------
 class Session {
-  constructor(kind, opts = {}) {
+  constructor(kind) {
     this.kind = kind;
-    this.forceSplit = !!opts.split;
     this.exercise = kind === 'shuffle' ? EX_SHUFFLE : kind === 'decoy' ? EX_DECOY : EX_COMMANDS;
     this.decoyReact = [];
     this.sessionId = newSessionId();
@@ -265,7 +263,7 @@ class Session {
     } else if (this.kind === 'decoy') {
       const commands = [settings.cmdLeft && 'left', settings.cmdRight && 'right', settings.cmdFront && 'front'].filter(Boolean);
       const weights = { go: 0.55, stop: settings.decoyStop ? 0.25 : 0, flip: settings.decoyFlip ? 0.2 : 0 };
-      this.split = this.forceSplit || settings.splitStep;
+      this.split = settings.splitStep;
       this.eng = new DecoyEngine({
         params: {
           commands: commands.length ? commands : ['left', 'right', 'front'],
@@ -694,16 +692,15 @@ class Session {
   }
 }
 
-function startSession(kind, opts) {
+function startSession(kind) {
   audio.unlock();
-  session = new Session(kind, opts);
+  session = new Session(kind);
   window.__session = session;
   session.start();
 }
 
 $('#start-shuffle').addEventListener('click', () => startSession('shuffle'));
 $('#start-decoy').addEventListener('click', () => startSession('decoy'));
-$('#start-split').addEventListener('click', () => startSession('decoy', { split: true }));
 const couch = initCouch({ store, cloud, audio, exCouch: EX_COUCH, settings: () => settings, onExit: () => show('home') });
 $('#start-couch').addEventListener('click', () => {
   audio.unlock();
