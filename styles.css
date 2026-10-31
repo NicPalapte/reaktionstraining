@@ -103,7 +103,7 @@ body.in-session .tabbar { display: none; }
 .row .d { color: var(--muted); }
 .empty { color: var(--muted); margin: 4px 0; }
 
-canvas#hist-chart { width: 100%; height: 220px; display: block; touch-action: pan-y; }
+canvas#hist-chart, canvas.hist-canvas { width: 100%; height: 220px; display: block; touch-action: pan-y; }
 .tip { margin-top: 6px; font-variant-numeric: tabular-nums; color: var(--ink); font-size: 14px; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; color: var(--muted); font-size: 13px; }
 .lg-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--ball); opacity: 0.5; margin-right: 6px; }
@@ -122,7 +122,7 @@ canvas#hist-chart { width: 100%; height: 220px; display: block; touch-action: pa
 .row-actions .btn { flex: 1 1 140px; }
 
 .seg { display: flex; gap: 4px; padding: 4px; background: var(--surface); border-radius: 14px; margin-bottom: 14px; }
-.seg button { flex: 1; min-height: 40px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font: inherit; font-weight: 700; padding: 0 12px; }
+.seg button { flex: 1; min-height: 40px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font: inherit; font-weight: 700; padding: 0 8px; white-space: nowrap; }
 .seg button.on { background: var(--surface-2); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
 .seg.small { margin: 0; }
 .seg.small button { min-height: 34px; font-size: 14px; }
@@ -235,3 +235,59 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .frame.cam-off { opacity: 0; pointer-events: none; }
 .track-dot { width: 14px; height: 14px; border-radius: 50%; background: #ef4b4b; box-shadow: 0 0 0 4px rgba(239, 75, 75, 0.25); align-self: center; margin: 0 auto 0 14px; }
 .track-dot[data-on="1"] { background: var(--go); box-shadow: 0 0 0 4px rgba(62, 207, 122, 0.25); }
+
+/* ---------- Krafttraining ---------- */
+.seg.kr-seg { overflow-x: auto; scrollbar-width: none; margin-bottom: 10px; }
+.kr-seg button { flex: 1 0 auto; white-space: nowrap; }
+.seg button.now { box-shadow: inset 0 -3px 0 var(--ball); }
+.seg button.on.now { box-shadow: inset 0 0 0 1px var(--line), inset 0 -3px 0 var(--ball); }
+#kr-phase-head h2 .muted, #kr-weekcard h2 .muted { font-weight: 600; font-size: 15px; }
+.kr-sub { margin: 16px 0 4px; font-weight: 800; color: var(--ball); font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; }
+.kr-ex { padding: 12px 0; border-top: 1px solid var(--line); }
+.card h2 + .kr-ex, .card .hint + .kr-ex, .kr-sub + .kr-ex { border-top: 0; }
+.kr-ex.off { opacity: 0.5; }
+.kr-name { font-weight: 700; margin-bottom: 8px; }
+.kr-name .muted { font-weight: 500; }
+.kr-inputs { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 8px; }
+.kr-inputs input, .form input[type="text"] {
+  width: 100%; min-width: 0; font: inherit; color: var(--ink); background: var(--night);
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; user-select: text; -webkit-user-select: text;
+}
+.kr-inputs input[data-field="value"] { font-weight: 700; }
+.kr-last { color: var(--muted); font-size: 14px; margin-top: 6px; }
+.kr-app { font-size: 14px; margin-top: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.kr-app b { color: var(--ball); }
+.kr-hist { margin-top: 4px; font-size: 14px; }
+.kr-hist summary { color: var(--muted); cursor: pointer; padding: 4px 0; }
+.kr-hist .row { grid-template-columns: auto auto 1fr; padding: 7px 0; }
+.kr-check { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.card h2 + .kr-check, .card .hint + .kr-check, .kr-sub + .kr-check { border-top: 0; }
+.kr-check input { width: 24px; height: 24px; flex: none; margin: 0; accent-color: var(--ball); }
+.kr-of { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.form input.warn { border-color: var(--clay); color: var(--clay); }
+.warn-text { color: var(--clay); }
+.kr-days { color: var(--ball); font-weight: 700; font-size: 14px; }
+.kr-dim { opacity: 0.6; }
+.kr-today { font-weight: 700; margin: 0 4px 12px; }
+.kr-info { margin: 4px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; }
+.kr-info dt { color: var(--ink); font-weight: 700; }
+.kr-info dd { margin: 0; }
+.kr-inputs input::placeholder, .form input[type="text"]::placeholder { color: var(--muted); opacity: 0.6; font-weight: 500; }
+
+.kr-desc summary { cursor: pointer; color: var(--muted); font-size: 14px; list-style: none; display: flex; gap: 8px; align-items: baseline; }
+.kr-desc summary::-webkit-details-marker { display: none; }
+.kr-desc summary::after { content: 'Mehr'; margin-left: auto; color: var(--ball); font-weight: 700; flex: none; }
+.kr-desc[open] summary::after { content: 'Weniger'; }
+.kr-desc .kr-info { margin-top: 10px; font-size: 14px; color: var(--muted); }
+
+/* Verlauf Krafttraining */
+.hs-pick { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; font-size: 14px; }
+.hs-pick select {
+  width: 100%; font: inherit; font-size: 17px; font-weight: 700; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; appearance: none; -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 22px) 52%, calc(100% - 16px) 52%; background-size: 6px 6px; background-repeat: no-repeat;
+}
+.kr-inputs { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 2.4fr); }
+.kr-inputs input[data-field="reps"] { padding-left: 6px; padding-right: 6px; text-align: center; font-weight: 700; }
+#hs-list .row { grid-template-columns: auto auto 1fr; }

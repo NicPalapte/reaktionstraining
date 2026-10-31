@@ -137,7 +137,9 @@ class Cloud {
         }
         for (const r of remote) if (!localIds.has(r.id)) await put(r);
       }
+      const strengthOk = await this.syncStrength();
       this.lastSync = new Date();
+      if (!strengthOk) this.lastError = 'Krafttraining wird nur lokal gespeichert: bitte supabase/migration-3-kraft.sql im SQL Editor ausführen.';
       if (schemaOld) this.lastError = 'Das Supabase-Schema ist veraltet: bitte supabase/migration-2-spiele.sql im SQL Editor ausführen.';
     } catch (e) {
       console.warn('Abgleich fehlgeschlagen', e);
@@ -146,6 +148,36 @@ class Cloud {
       this.syncing = false;
       this.emit();
     }
+  }
+
+  /**
+   * Krafttraining: Einträge sind änderbar, darum Abgleich nach updated_at (neuere Seite gewinnt).
+   * @returns {Promise<boolean>} false, wenn die Tabelle in Supabase noch fehlt
+   */
+  async syncStrength() {
+    let remote;
+    try {
+      remote = await this.fetchAll('strength', 'id,created_at,updated_at,data');
+    } catch (e) {
+      if (e?.code === '42P01' || e?.code === 'PGRST205' || /does not exist|could not find the table/i.test(e?.message)) return false;
+      throw e;
+    }
+    const ts = (v) => Date.parse(v) || 0; // lokal "…Z", Supabase "…+00:00": als Zeit vergleichen, nicht als Text
+    const mine = new Map((await store.listStrength()).map((r) => [r.id, r]));
+    const theirs = new Map(remote.map((r) => [r.id, r]));
+    for (const r of remote) {
+      const l = mine.get(r.id);
+      if (!l || ts(l.updated_at) < ts(r.updated_at)) await store.put('strength', { ...r.data, id: r.id, created_at: r.created_at, updated_at: r.updated_at });
+    }
+    const up = [...mine.values()]
+      .filter((l) => !theirs.has(l.id) || ts(theirs.get(l.id).updated_at) < ts(l.updated_at))
+      .map(({ id, created_at, updated_at, ...data }) => ({ id, user_id: this.user.id, created_at, updated_at, data }));
+    for (let i = 0; i < up.length; i += 200) {
+      const { error } = await this.sb.from('strength').upsert(up.slice(i, i + 200), { onConflict: 'user_id,id' });
+      if (error) throw error;
+    }
+    if (remote.some((r) => !mine.has(r.id) || ts(mine.get(r.id).updated_at) < ts(r.updated_at))) this.emit();
+    return true;
   }
 
   /** "Alles löschen" gilt auch für die Cloud, sonst käme alles beim nächsten Abgleich zurück. */

@@ -98,3 +98,20 @@ Tabellen siehe `supabase/schema.sql`). „Alles löschen“ löscht bei angemeld
   Grün-zu-Rot = nicht reinfallen, Blau = Fake (ignorieren, danach kommt oft gleich der echte Pfeil). 3 Leben, Punkte mit Serien-Bonus,
   alle 8 Treffer ein Level (schneller, mehr Täuschungen). Interne Übungsnamen: `decoy_court`, `decoy_couch`.
 - Supabase: Wer `schema.sql` schon vorher ausgeführt hat, führt einmal `supabase/migration-2-spiele.sql` aus.
+
+## Krafttraining
+
+- Tab **Kraft** (`js/strength-plan.js` = Plan als Daten, `js/strength-ui.js` = Oberfläche): Wintertraining 26/27 mit den Phasen
+  P1–P6. **Workouts:** Phase → Woche (DL = Deload) → Einheit (A, B, C, Sprint; ab P5 Kraft 1/2, Erhalt 1/2), bewusst ohne Wochentag.
+  Je Übung und Woche Wert, Wdh und Notiz, dazu „Zuletzt“ aus der Vorwoche und der Verlauf. Gym-Einheiten enthalten Aufwärmen
+  (Tennisball, Außenrotation), Schulterblatt-Block und Dehnen danach. Pro Woche: Morgen-Routine /7, Ellbogen /10 (über 3 wird
+  gewarnt), Ausdauer bzw. Aufschläge. Beim Sprint lässt sich die beste 5-10-5-Zeit der Woche aus der App übernehmen.
+- **Physio & Dehnen:** eigene Kategorie mit Wochentagen, Abhaken pro Tag.
+- Keine eigenen Werte im Code (das Repo ist öffentlich). Einstellungen → Krafttraining: **Exportieren** sichert alle Einträge als JSON,
+  **Importieren** übernimmt eine solche Datei (pro Eintrag gewinnt die neuere Änderung). Private Dateien gehören nach `private/`
+  (in `.gitignore`). Die Kalenderwoche ergibt sich aus dem Datum (W1 = 28.09.2026).
+- Gespeichert in IndexedDB (Store `strength`), mit Konto zusätzlich in Supabase: einmal `supabase/migration-3-kraft.sql` ausführen.
+  „Alles löschen“ im Verlauf löscht nur die Zeiten, nicht das Krafttraining.
+- **Verlauf → Kraft:** Diagramm je Übung über die Trainingswochen (Gewicht, Wdh, bzw. Zeit/Weite), ein Punkt pro Woche, Phasengrenzen
+  gestrichelt. Die Zahlen kommen aus dem Freitext (`parseResult`): Gewicht = höchste Zahl vor „kg“ („50 - 45 kg“ = 50),
+  Wdh aus dem Feld Wdh („3 × 8“ = 8, „8, 8, 6“ = Schnitt) oder „10 Wdh“ im Wert, sonst „s“, „cm“ oder „m“.

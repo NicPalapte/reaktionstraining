@@ -7,11 +7,13 @@
 //   addSession(session)  -> gespeicherter Eintrag
 //   listTrials(exercise) -> Einträge, älteste zuerst
 //   listSessions()       -> Einträge, älteste zuerst
+//   putStrength(row)     -> Krafttraining-Eintrag anlegen oder ersetzen (id = fester Schlüssel, siehe strength-plan.js)
+//   listStrength()       -> alle Krafttraining-Einträge
 //   deleteAll()
 //   exportCSV()          -> String
 
 const DB_NAME = 'tennis-reaktion';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const uid = () =>
   globalThis.crypto?.randomUUID ? crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -21,12 +23,18 @@ function openDb() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
-      const trials = db.createObjectStore('trials', { keyPath: 'id' });
-      trials.createIndex('created_at', 'created_at');
-      const sessions = db.createObjectStore('sessions', { keyPath: 'id' });
-      sessions.createIndex('created_at', 'created_at');
+      for (const name of ['trials', 'sessions']) {
+        if (db.objectStoreNames.contains(name)) continue;
+        db.createObjectStore(name, { keyPath: 'id' }).createIndex('created_at', 'created_at');
+      }
+      // v2: Krafttraining, Einträge werden überschrieben (letzte Änderung gewinnt)
+      if (!db.objectStoreNames.contains('strength')) db.createObjectStore('strength', { keyPath: 'id' });
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      // Neuere Version in einem anderen Tab/Fenster: Verbindung freigeben, sonst hängt dessen Upgrade
+      req.result.onversionchange = () => req.result.close();
+      resolve(req.result);
+    };
     req.onerror = () => reject(req.error);
   });
 }
@@ -41,7 +49,7 @@ export class LocalStore {
   constructor() {
     this.name = 'local';
     this.dbp = null;
-    this.memory = { trials: [], sessions: [] }; // Notnagel, falls IndexedDB nicht verfügbar ist
+    this.memory = { trials: [], sessions: [], strength: [] }; // Notnagel, falls IndexedDB nicht verfügbar ist
     this.useMemory = false;
   }
 
@@ -61,7 +69,10 @@ export class LocalStore {
         this.useMemory = true;
       }
     }
-    this.memory[storeName].push(row);
+    const list = this.memory[storeName];
+    const i = list.findIndex((r) => r.id === row.id);
+    if (i >= 0) list[i] = row;
+    else list.push(row);
     return row;
   }
 
@@ -96,8 +107,18 @@ export class LocalStore {
     return this.all('sessions');
   }
 
+  putStrength(row) {
+    const now = new Date().toISOString();
+    return this.put('strength', { created_at: now, ...row, updated_at: row.updated_at ?? now });
+  }
+
+  listStrength() {
+    return this.all('strength');
+  }
+
   async deleteAll() {
-    this.memory = { trials: [], sessions: [] };
+    // Das Krafttraining bleibt bewusst erhalten, es hat mit den Reaktionszeiten nichts zu tun.
+    this.memory = { ...this.memory, trials: [], sessions: [] };
     try {
       const db = await this.db();
       await wrap(db.transaction('trials', 'readwrite').objectStore('trials').clear());

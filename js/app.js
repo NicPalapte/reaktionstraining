@@ -4,6 +4,7 @@ import { ShuffleEngine } from './shuffle-engine.js';
 import { CommandEngine } from './command-engine.js';
 import { DecoyEngine } from './decoy-engine.js';
 import { initCouch } from './couch-ui.js';
+import { initStrength } from './strength-ui.js';
 import { Calibrator, makeSample } from './calibration.js';
 import { PoseTracker } from './pose.js';
 import { SimTracker } from './sim-tracker.js';
@@ -36,10 +37,11 @@ const fmtDur = (ms) => {
 
 // ---------- Navigation ----------
 function show(name) {
-  for (const id of ['home', 'history', 'settings', 'session', 'couch']) $(`#screen-${id}`).hidden = id !== name;
+  for (const id of ['home', 'strength', 'history', 'settings', 'session', 'couch']) $(`#screen-${id}`).hidden = id !== name;
   document.body.classList.toggle('in-session', name === 'session' || name === 'couch');
   document.querySelectorAll('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.go === name));
   if (name === 'home') refreshHome();
+  if (name === 'strength') strength.render();
   if (name === 'history') renderHistory();
   if (name === 'settings') refreshSettings();
   window.scrollTo(0, 0);
@@ -701,6 +703,7 @@ function startSession(kind) {
 
 $('#start-shuffle').addEventListener('click', () => startSession('shuffle'));
 $('#start-decoy').addEventListener('click', () => startSession('decoy'));
+const strength = initStrength({ store, cloud, exShuffle: EX_SHUFFLE });
 const couch = initCouch({ store, cloud, audio, exCouch: EX_COUCH, settings: () => settings, onExit: () => show('home') });
 $('#start-couch').addEventListener('click', () => {
   audio.unlock();
@@ -746,9 +749,12 @@ async function renderHistory() {
   $('#hist-shuffle').hidden = histEx !== EX_SHUFFLE;
   $('#hist-commands').hidden = true;
   $('#hist-games').hidden = histEx !== EX_DECOY && histEx !== EX_COUCH;
+  $('#hist-strength').hidden = histEx !== 'strength';
   $('#store-note').textContent = cloud.user ? 'Gespeichert auf diesem Gerät und in deinem Konto.' : 'Gespeichert nur auf diesem Gerät.';
 
-  if (histEx === EX_SHUFFLE) {
+  if (histEx === 'strength') {
+    await strength.renderHistory();
+  } else if (histEx === EX_SHUFFLE) {
     const all = await store.listTrials(EX_SHUFFLE);
     const valid = all.filter((t) => t.valid && t.run_ms != null);
     const last10 = valid.slice(-10);

@@ -81,6 +81,37 @@
   </details>
 </main>
 
+<!-- ======================= Krafttraining ======================= -->
+<main id="screen-strength" class="screen" data-tab="strength" hidden>
+  <header class="page-head">
+    <h1>Krafttraining</h1>
+    <p class="lede">Wintertraining 26/27</p>
+  </header>
+
+  <div class="seg" id="kr-view" role="tablist" aria-label="Bereich">
+    <button type="button" role="tab" class="on" data-view="workout">Workouts</button>
+    <button type="button" role="tab" data-view="routine">Physio &amp; Dehnen</button>
+  </div>
+
+  <section id="kr-workout">
+    <div class="seg small kr-seg" id="kr-phase" aria-label="Phase"></div>
+    <div class="card" id="kr-phase-head"></div>
+    <div class="seg small kr-seg" id="kr-week" aria-label="Woche"></div>
+    <div class="card form" id="kr-weekcard"></div>
+    <div class="seg kr-seg" id="kr-unit" aria-label="Einheit"></div>
+    <div id="kr-unit-body"></div>
+  </section>
+
+  <section id="kr-routine" hidden>
+    <div id="kr-routine-body"></div>
+  </section>
+
+  <details class="setup">
+    <summary>Regeln</summary>
+    <dl class="kr-info" id="kr-info"></dl>
+  </details>
+</main>
+
 <!-- ======================= Verlauf ======================= -->
 <main id="screen-history" class="screen" data-tab="history" hidden>
   <header class="page-head"><h1>Verlauf</h1></header>
@@ -89,6 +120,7 @@
     <button type="button" role="tab" class="on" data-ex="shuffle_5_10_5">5-10-5</button>
     <button type="button" role="tab" data-ex="decoy_court">Reaktion</button>
     <button type="button" role="tab" data-ex="decoy_couch">Spiel</button>
+    <button type="button" role="tab" data-ex="strength">Kraft</button>
   </div>
 
   <section id="hist-shuffle">
@@ -110,6 +142,27 @@
     <div class="card">
       <h2>Sätze</h2>
       <div id="hist-days" class="rows"></div>
+    </div>
+  </section>
+
+  <section id="hist-strength" hidden>
+    <p class="empty" id="hs-empty" hidden>Noch keine Krafteinträge. Trag im Tab Kraft Gewicht und Wdh ein.</p>
+    <div id="hs-body">
+      <label class="hs-pick"><span class="muted">Übung</span><select id="hs-ex"></select></label>
+      <div class="stats" id="hs-stats"></div>
+      <div class="card">
+        <div class="card-head">
+          <h2>Verlauf</h2>
+          <div class="seg small" id="hs-metric"></div>
+        </div>
+        <canvas id="hs-chart" class="hist-canvas" aria-label="Verlauf der Übung über die Trainingswochen" role="img"></canvas>
+        <div class="tip" id="hs-tip" hidden></div>
+        <p class="hint" id="hs-note"></p>
+      </div>
+      <div class="card">
+        <h2>Einträge</h2>
+        <div id="hs-list" class="rows"></div>
+      </div>
     </div>
   </section>
 
@@ -166,6 +219,16 @@
   <div class="card form">
     <label class="field switch"><span>Kamerabild im Drill anzeigen</span><input type="checkbox" data-key="showCamera"></label>
     <p class="hint">Aus: Nach der Kalibrierung siehst du nur die Signale, die Erkennung läuft unsichtbar weiter. Ein kleiner Punkt zeigt, ob du erkannt wirst. Die Seite muss geöffnet und der Bildschirm an bleiben.</p>
+  </div>
+
+  <div class="card form">
+    <h2>Krafttraining</h2>
+    <div class="row-actions">
+      <button type="button" class="btn ghost" id="kr-export">Exportieren</button>
+      <button type="button" class="btn ghost" id="kr-import-btn">Importieren</button>
+      <input type="file" id="kr-import" accept="application/json,.json" hidden>
+    </div>
+    <p class="hint" id="kr-backup-msg">Sichert alle Krafteinträge als Datei. Beim Importieren gewinnt pro Eintrag die neuere Änderung.</p>
   </div>
 
   <div class="card form" id="account">
@@ -293,6 +356,7 @@
 
 <nav class="tabbar" id="tabbar" aria-label="Hauptnavigation">
   <button type="button" data-go="home" class="on">Training</button>
+  <button type="button" data-go="strength">Kraft</button>
   <button type="button" data-go="history">Verlauf</button>
   <button type="button" data-go="settings">Einstellungen</button>
 </nav>
