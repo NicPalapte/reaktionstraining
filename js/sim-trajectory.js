@@ -79,3 +79,59 @@ export function commandTrajectory({ command, reactS = 0.3, distanceM = 3.5, tors
   };
   return { sample, endS: t3 };
 }
+
+/**
+ * Ein Weg beim Spider-Drill: von der Mitte zum Hütchen und zurück. Rückgabe {dx, r} wie commandTrajectory.
+ * Das Gerät steht camM vor der Mitte; "vorne" heißt näher ans Gerät (r wächst), dx wächst mit der Nähe mit.
+ * truth.centerS = Zeitpunkt, an dem die Person wieder in der Mitte ist.
+ */
+export function spiderLegTrajectory({ target, reactS = 0.25, radiusM = 3, camM = 6, torsoM = 0.5, a = 7, vmax = 5, dwell = 0.15 }) {
+  const ang = { left: Math.PI, 'front-left': (3 * Math.PI) / 4, front: Math.PI / 2, 'front-right': Math.PI / 4, right: 0 }[target];
+  const leg = trapezoid(radiusM, a, vmax);
+  const t1 = reactS;
+  const t2 = t1 + leg.T + dwell;
+  const t3 = t2 + leg.T;
+  const d = (t) => (t <= t1 ? 0 : t <= t1 + leg.T ? leg.pos(t - t1) : t <= t2 ? radiusM : t <= t3 ? radiusM - leg.pos(t - t2) : 0);
+  const sample = (t) => {
+    const m = d(t);
+    const lat = Math.cos(ang) * m;
+    const fwd = Math.sin(ang) * m;
+    const r = camM / Math.max(0.8, camM - fwd);
+    return { dx: (lat / torsoM) * r, r, m: lat };
+  };
+  return { sample, endS: t3, truth: { centerS: t3 } };
+}
+
+/**
+ * Lauf mit Abbremsen: nach reactS seitlich beschleunigen, brakeAtS Sekunden nach dem Start der Bremsung
+ * (Reaktion auf "STOPP" eingerechnet) mit decel abbremsen, stehen bleiben, nach holdS zurück in die Mitte.
+ * tBrake wird gesetzt, sobald das Stopp-Signal kommt (setBrake). Rückgabe {dx, r}.
+ */
+export function brakeTrajectory({ dir, reactS = 0.28, brakeReactS = 0.2, a = 6, vmax = 4.5, decel = 8, holdS = 1.2, torsoM = 0.5 }) {
+  let tBrake = null;
+  const free = (t) => {
+    const tt = Math.max(0, t - reactS);
+    const tacc = vmax / a;
+    return tt < tacc ? { x: 0.5 * a * tt * tt, v: a * tt } : { x: 0.5 * a * tacc * tacc + vmax * (tt - tacc), v: vmax };
+  };
+  const pos = (t) => {
+    if (tBrake == null || t <= tBrake + brakeReactS) return free(t).x;
+    const tb = tBrake + brakeReactS;
+    const { x, v } = free(tb);
+    const ts = v / decel;
+    const dt = t - tb;
+    if (dt <= ts) return x + v * dt - 0.5 * decel * dt * dt;
+    const xs = x + (v * v) / (2 * decel);
+    const back = dt - ts - holdS;
+    return back <= 0 ? xs : Math.max(0, xs - 2 * back);
+  };
+  return {
+    setBrake: (t) => (tBrake ??= t),
+    sample: (t) => ({ dx: (dir * pos(t)) / torsoM, r: 1 }),
+    truth: () => {
+      const tb = tBrake + brakeReactS;
+      const { v } = free(tb);
+      return { stopS: tb + v / decel, distM: pos(tb + v / decel + 0.01) - free(tBrake).x };
+    },
+  };
+}

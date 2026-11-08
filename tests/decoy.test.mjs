@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DecoyEngine } from '../js/decoy-engine.js';
 import { CouchGame, levelParams, COUCH } from '../js/couch-engine.js';
-import { commandTrajectory } from '../js/sim-trajectory.js';
+import { commandTrajectory, brakeTrajectory } from '../js/sim-trajectory.js';
 
 function lcg(seed) {
   let s = seed >>> 0;
@@ -245,4 +245,72 @@ test('Splitstep: Hüpfen am Ort ist erlaubt, Losrennen vor dem Pfeil ist ein Feh
   assert.ok(ok.results.every((r) => r.correct), JSON.stringify(ok.results));
   const bad = runSplit({ runAtSplit: true, n: 2 });
   assert.ok(bad.results.every((r) => !r.correct && /früh/.test(r.reason)), JSON.stringify(bad.results));
+});
+
+/** Abbremsen: läuft los, reagiert auf STOPP nach brakeReactS. late = bremst gar nicht (läuft aus dem Bild). */
+// Gerät für den Stopp-Drill 6–7 m entfernt: sichtbar sind dann ca. ±3 m.
+function runBrake({ seed = 1, n = 4, reactS = 0.28, brakeReactS = 0.2, late = false, commands = ['left', 'right'], outM = 3 } = {}) {
+  const ev = [];
+  const eng = new DecoyEngine({ params: { weights: { brake: 1 }, commands }, rand: lcg(seed), onEvent: (name, d) => ev.push([name, d]) });
+  eng.start();
+  const noise = lcg(seed + 4);
+  let traj = null;
+  let tSig = 0;
+  const truths = [];
+  for (let t = 0; t < 30 * 400 * 33 && ev.filter((e) => e[0] === 'result').length < n; t += 33) {
+    const s = traj ? traj.sample((t - tSig) / 1000) : { dx: 0, r: 1 };
+    const inp = Math.abs(s.dx) * TORSO_M > outM ? null : { dx: s.dx + (noise() - 0.5) * 0.06, r: s.r };
+    const before = ev.length;
+    eng.update(t, inp);
+    for (const [name, d] of ev.slice(before)) {
+      if (name === 'signal') {
+        tSig = t;
+        traj = brakeTrajectory({ dir: d.command === 'left' ? -1 : 1, reactS, brakeReactS: late ? 99 : brakeReactS });
+      }
+      if (name === 'brake') traj.setBrake((t - tSig) / 1000);
+      if (name === 'result' && d.correct) truths.push({ ...traj.truth(), tBrakeS: null });
+    }
+  }
+  return { ev, eng, results: ev.filter((e) => e[0] === 'result').map((e) => e[1]), truths };
+}
+
+test('Abbremsen: STOPP kommt im Lauf, Bremszeit und Bremsweg werden gemessen', () => {
+  for (let seed = 1; seed <= 5; seed++) {
+    const { results, eng, ev } = runBrake({ seed, brakeReactS: 0.2 });
+    assert.equal(results.length, 4, JSON.stringify(ev.filter((e) => e[0] !== 'state').slice(-6)));
+    assert.equal(ev.filter((e) => e[0] === 'brake').length, 4);
+    for (const r of results) {
+      assert.equal(r.type, 'brake');
+      assert.notEqual(r.command, 'front');
+      assert.equal(r.correct, true, JSON.stringify(r));
+      assert.ok(Math.abs(r.reaction_ms - 280) < 120, `Reaktion ${r.reaction_ms}`);
+      // 0,2 s Reaktion auf STOPP + Bremsen aus ca. 4 m/s mit 8 m/s² (ca. 0,5 s)
+      assert.ok(r.brake_ms > 450 && r.brake_ms < 950, `Bremszeit ${r.brake_ms}`);
+      assert.ok(r.brake_cm > 80 && r.brake_cm < 260, `Bremsweg ${r.brake_cm}`);
+    }
+    assert.deepEqual(eng.stats.brake, [4, 4]);
+  }
+});
+
+test('Abbremsen: schneller reagieren gibt kürzere Bremszeit', () => {
+  const fast = runBrake({ seed: 2, brakeReactS: 0.1 }).results.map((r) => r.brake_ms);
+  const slow = runBrake({ seed: 2, brakeReactS: 0.28 }).results.map((r) => r.brake_ms);
+  const avg = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+  assert.ok(slow.length === 4 && avg(slow) - avg(fast) > 120, `${avg(fast)} vs ${avg(slow)}`);
+});
+
+test('Abbremsen: nach STOPP aus dem Bild gelaufen zählt als gestoppt, aber ohne Messung', () => {
+  const { results, eng } = runBrake({ late: true, n: 2 });
+  assert.ok(results.every((r) => r.correct && r.measured === false && r.brake_ms == null), JSON.stringify(results));
+  assert.deepEqual(eng.stats.brake, [2, 2]);
+});
+
+test('Abbremsen: im Bild gestoppt ist gemessen', () => {
+  const { results } = runBrake({ n: 2 });
+  assert.ok(results.every((r) => r.measured === true && r.brake_ms > 0), JSON.stringify(results));
+});
+
+test('Abbremsen: nur "vorne" erlaubt -> wird zur normalen Laufaufgabe', () => {
+  const { results } = runDecoy({ weights: { brake: 1 }, behave: () => 'run', commands: ['front'], n: 2 });
+  assert.ok(results.every((r) => r.type === 'go' && r.correct), JSON.stringify(results));
 });

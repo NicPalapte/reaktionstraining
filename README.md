@@ -93,11 +93,19 @@ Tabellen siehe `supabase/schema.sql`). „Alles löschen“ löscht bei angemeld
   Fake-Signale und Splitstep lassen sich in den Einstellungen schalten. **Splitstep:** erst „Split!“ (Ton, Sprache, Anzeige), nach kurzer
   Pause der Pfeil; gemessen wird ab dem Pfeil, Losrennen vor dem Pfeil ist ein Fehlstart.
   Das Kamerabild ist nach der Kalibrierung ausgeblendet (Einstellung „Kamerabild im Drill anzeigen“), ein Punkt zeigt die Erkennung. Gespeichert wird pro Aufgabe richtig/falsch
-  (`reason` = `go`, `stop`, `flip` bzw. `typ:fehler`).
+  (`reason` = `go`, `stop`, `flip`, `brake` bzw. `typ:fehler`).
+  **Abbremsen** (`brake`, schaltbar): grüner Pfeil links/rechts, nach 0,4–0,6 m kommt „STOPP“; gemessen werden Bremszeit
+  (STOPP bis Stand, gespeichert in `run_ms`) und Bremsweg (Satz-`meta.brake_cm`), wenn du im Bild stoppst (Gerät 6–7 m entfernt).
+  Läufst du nach STOPP aus dem Bild (Ansage über Kopfhörer), zählt die Aufgabe als gestoppt, aber ohne Messung.
+  Der **Stopp-Drill** aus dem Sprint-Block ist derselbe Drill nur mit Abbremsen (`meta.preset = 'brake'`).
+- **Spider-Drill** (mit Kamera, `js/spider-engine.js`, Übung `spider_drill`): fünf Hütchen im Halbkreis (links, vorne-links, vorne,
+  vorne-rechts, rechts), nach jedem zurück durch die Mitte. Ein Weg zählt, wenn du weit genug in die Richtung läufst oder dorthin
+  aus dem Bild verschwindest; „vorne“ wird über den Abstand zur Kamera erkannt. Zeit vom ersten Pfeil bis zur Rückkehr nach dem
+  fünften Hütchen, dazu Zeiten je Hütchen. Reihenfolge klassisch oder zufällig.
 - **Reaktionsspiel** (Couch, ohne Kamera, `js/couch-engine.js`): links/rechts/vorne antippen. Grün = tippen, Rot = nicht tippen,
   Grün-zu-Rot = nicht reinfallen, Blau = Fake (ignorieren, danach kommt oft gleich der echte Pfeil). 3 Leben, Punkte mit Serien-Bonus,
   alle 8 Treffer ein Level (schneller, mehr Täuschungen). Interne Übungsnamen: `decoy_court`, `decoy_couch`.
-- Supabase: Wer `schema.sql` schon vorher ausgeführt hat, führt einmal `supabase/migration-2-spiele.sql` aus.
+- Supabase: Wer `schema.sql` schon vorher ausgeführt hat, führt einmal `supabase/migration-4-spider.sql` aus (enthält auch die Spiele aus Migration 2).
 
 ## Krafttraining
 
@@ -105,7 +113,7 @@ Tabellen siehe `supabase/schema.sql`). „Alles löschen“ löscht bei angemeld
   P1–P6. **Workouts:** Phase → Woche (DL = Deload) → Einheit (A, B, C, Sprint; ab P5 Kraft 1/2, Erhalt 1/2), bewusst ohne Wochentag.
   Je Übung und Woche Wert, Wdh und Notiz, dazu „Zuletzt“ aus der Vorwoche und der Verlauf. Gym-Einheiten enthalten Aufwärmen
   (Tennisball, Außenrotation), Schulterblatt-Block und Dehnen danach. Pro Woche: Morgen-Routine /7, Ellbogen /10 (über 3 wird
-  gewarnt), Ausdauer bzw. Aufschläge. Beim Sprint lässt sich die beste 5-10-5-Zeit der Woche aus der App übernehmen.
+  gewarnt), Ausdauer bzw. Aufschläge. Die Sprint-Einheit hat Aufwärmen und alle Übungen mit Vorgabe und „So geht’s“; 5-10-5, Spider, Stopp-Drill und Reaktionsdrill starten direkt von dort, die Werte der Woche lassen sich übernehmen.
 - **Physio & Dehnen:** eigene Kategorie mit Wochentagen, Abhaken pro Tag.
 - Keine eigenen Werte im Code (das Repo ist öffentlich). Einstellungen → Krafttraining: **Exportieren** sichert alle Einträge als JSON,
   **Importieren** übernimmt eine solche Datei (pro Eintrag gewinnt die neuere Änderung). Private Dateien gehören nach `private/`

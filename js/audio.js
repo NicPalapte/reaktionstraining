@@ -1,13 +1,17 @@
 // Töne und Sprachausgabe. iOS erlaubt beides erst nach einer Berührung, deshalb unlock().
+// iOS hält den Audio-Kontext nach dem Kamerastart oder beim Wechsel in den Hintergrund oft an:
+// darum vor jedem Ton aufwecken und bei jeder Berührung erneut entsperren.
 
 let ctx = null;
+let warmed = false;
 
 export function unlock() {
   try {
     ctx ??= new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
-    // Sprachausgabe einmal "anwärmen"
-    if ('speechSynthesis' in window) {
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
+    // Sprachausgabe einmal "anwärmen" (nur beim ersten Mal, sonst würde es laufende Ansagen stören)
+    if (!warmed && 'speechSynthesis' in window) {
+      warmed = true;
       const u = new SpeechSynthesisUtterance(' ');
       u.volume = 0;
       speechSynthesis.speak(u);
@@ -17,9 +21,18 @@ export function unlock() {
   }
 }
 
+/** Jede Berührung entsperrt erneut; nach dem Zurückkehren in die App aufwecken. */
+export function keepAlive() {
+  for (const ev of ['pointerdown', 'touchend', 'keydown']) window.addEventListener(ev, () => unlock(), { capture: true, passive: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && ctx && ctx.state !== 'running') ctx.resume().catch(() => {});
+  });
+}
+
 export function beep(freq = 880, ms = 120, gain = 0.25) {
   if (!ctx) return;
   try {
+    if (ctx.state !== 'running') ctx.resume().catch(() => {});
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = 'sine';
@@ -34,15 +47,35 @@ export function beep(freq = 880, ms = 120, gain = 0.25) {
   }
 }
 
+let voice = null;
+function pickVoice() {
+  try {
+    voice ??= speechSynthesis.getVoices().find((v) => v.lang?.toLowerCase().startsWith('de')) ?? null;
+  } catch {
+    /* ignorieren */
+  }
+  return voice;
+}
+
+/**
+ * Text ansagen. Läuft gerade eine Ansage, wird sie abgebrochen – aber nur dann: cancel() direkt vor speak()
+ * verschluckt in Safari sonst manchmal die neue Ansage.
+ */
 export function speak(text) {
   if (!('speechSynthesis' in window)) return;
   try {
-    speechSynthesis.cancel();
+    if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'de-DE';
+    const v = pickVoice();
+    if (v) u.voice = v;
     u.rate = 1.1;
     speechSynthesis.speak(u);
+    if (speechSynthesis.paused) speechSynthesis.resume(); // Safari hängt nach dem Hintergrund manchmal pausiert
   } catch {
     /* ignorieren */
   }
 }
+
+/** Zahl für die Ansage: 13,27 -> "13,3" (Komma wird deutsch gelesen). */
+export const sayNum = (v, digits = 1) => v.toLocaleString('de-DE', { maximumFractionDigits: digits });

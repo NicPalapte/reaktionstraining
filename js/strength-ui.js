@@ -13,7 +13,11 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const ELLB_OK = 3; // Ellb-Ampel: Schmerz ≤3/10 ok
 
-export function initStrength({ store, cloud, exShuffle }) {
+// Start-Buttons der App-Drills im Sprint-Block
+const APP_LABEL = { shuffle: '5-10-5 mit Kamera', spider: 'Spider mit Kamera', brake: 'Stopp-Drill mit Kamera', decoy: 'Reaktionsdrill mit Kamera' };
+const fmtS = (ms) => `${(ms / 1000).toFixed(2).replace('.', ',')} s`;
+
+export function initStrength({ store, cloud, ex, onRun }) {
   const rows = new Map();
   const now = new Date();
   const curWeek = Math.min(22, Math.max(1, weekOf(now)));
@@ -97,11 +101,12 @@ export function initStrength({ store, cloud, exShuffle }) {
       <div class="kr-ex" data-ex="${id}">
         <div class="kr-name">${esc(it.name)}${it.target ? ` <span class="muted">· ${esc(it.target)}</span>` : ''}</div>
         <div class="kr-inputs">
-          <input type="text" data-field="value" value="${esc(r.value)}" placeholder="${it.shuttle ? '5,41 s' : '40 kg'}" aria-label="${esc(it.name)}: Wert">
+          <input type="text" data-field="value" value="${esc(r.value)}" placeholder="${esc(it.ph ?? (it.shuttle ? '5,41 s' : '40 kg'))}" aria-label="${esc(it.name)}: Wert">
           <input type="text" data-field="reps" value="${esc(r.reps)}" placeholder="Wdh" inputmode="decimal" aria-label="${esc(it.name)}: Wiederholungen">
           <input type="text" data-field="note" value="${esc(r.note)}" placeholder="Notiz" aria-label="${esc(it.name)}: Notiz">
         </div>
-        ${it.shuttle ? '<div class="kr-app" data-shuttle></div>' : ''}
+        ${it.how ? `<details class="kr-how"><summary>So geht’s</summary><p>${esc(it.how)}</p></details>` : ''}
+        ${it.app ? `<div class="kr-app"><button type="button" class="btn small" data-run="${it.app}">${APP_LABEL[it.app]}</button><span data-app="${it.app}"></span></div>` : ''}
         ${lastTxt ? `<div class="kr-last">${lastTxt}</div>` : ''}
         ${hist.length
           ? `<details class="kr-hist"><summary>Verlauf (${hist.length})</summary>${hist
@@ -125,7 +130,7 @@ export function initStrength({ store, cloud, exShuffle }) {
     unit = u.id;
     const all = results(rows);
     $('#kr-unit-body').innerHTML = `
-      ${u.gym ? checklist('Aufwärmen', WARMUP, u) : ''}
+      ${u.gym ? checklist('Aufwärmen', WARMUP, u) : u.warmup ? checklist('Aufwärmen', u.warmup, u) : ''}
       <div class="card">
         <h2>${esc(u.title)}${u.name ? ` · ${esc(u.name)}` : ''}</h2>
         ${u.intro ? `<p class="hint">${esc(u.intro)}</p>` : ''}
@@ -133,19 +138,37 @@ export function initStrength({ store, cloud, exShuffle }) {
         ${u.block ? `<p class="kr-sub">Schulterblatt-Block</p>${u.block.map((it) => exRow(u, it, all)).join('')}` : ''}
       </div>
       ${u.gym ? checklist('Nach der Einheit', COOLDOWN, u) : ''}`;
-    const box = $('#kr-unit-body [data-shuttle]');
-    if (box) {
-      // Bestzeit aus dem 5-10-5 der App in dieser Woche zum Übernehmen anbieten
-      const from = weekStart(week);
-      const to = new Date(from);
-      to.setDate(to.getDate() + 7);
-      const times = (await store.listTrials(exShuffle))
-        .filter((t) => t.valid && t.run_ms != null && new Date(t.created_at) >= from && new Date(t.created_at) < to)
-        .map((t) => t.run_ms);
-      if (times.length) {
-        const best = `${(Math.min(...times) / 1000).toFixed(2).replace('.', ',')} s`;
-        box.innerHTML = `5-10-5 in der App diese Woche: <b>${best}</b> <button type="button" class="btn small ghost" data-take="${best}">Übernehmen</button>`;
+    const boxes = [...document.querySelectorAll('#kr-unit-body [data-app]')];
+    if (!boxes.length) return;
+    // Werte aus den App-Drills dieser Woche zum Übernehmen anbieten
+    const from = weekStart(week);
+    const to = new Date(from);
+    to.setDate(to.getDate() + 7);
+    const inWeek = (x) => new Date(x.created_at) >= from && new Date(x.created_at) < to;
+    const take = (text, value, reps = '') =>
+      `${text} <button type="button" class="btn small ghost" data-take="${esc(value)}" data-take-reps="${esc(reps)}">Übernehmen</button>`;
+    for (const box of boxes) {
+      const app = box.dataset.app;
+      let html = '';
+      if (app === 'shuffle' || app === 'spider') {
+        const times = (await store.listTrials(app === 'shuffle' ? ex.shuffle : ex.spider)).filter((t) => t.valid && t.run_ms != null && inWeek(t)).map((t) => t.run_ms);
+        if (times.length) html = take(`Diese Woche: <b>${fmtS(Math.min(...times))}</b> (${times.length}×)`, fmtS(Math.min(...times)), String(times.length));
+      } else if (app === 'brake') {
+        const tr = (await store.listTrials(ex.decoy)).filter((t) => inWeek(t) && String(t.reason).startsWith('brake'));
+        const ok = tr.filter((t) => t.valid);
+        const timed = ok.filter((t) => t.run_ms != null); // außerhalb des Bildes gestoppt: ohne Zeit
+        if (tr.length) {
+          const avg = timed.length ? fmtS(timed.reduce((a, t) => a + t.run_ms, 0) / timed.length) : null;
+          html = take(`Diese Woche: ${avg ? `Ø Bremszeit <b>${avg}</b>, ` : ''}${ok.length}/${tr.length} gestoppt`, avg ? `Ø ${avg}` : `${ok.length}/${tr.length}`, String(tr.length));
+        }
+      } else if (app === 'decoy') {
+        const ss = (await store.listSessions()).filter((x) => x.exercise === ex.decoy && inWeek(x) && x.meta?.preset !== 'brake');
+        if (ss.length) {
+          const sum = (k) => ss.reduce((a, x) => a + ['go', 'stop', 'flip', 'brake'].reduce((b, t) => b + (x.meta?.[t]?.[k] ?? 0), 0), 0);
+          html = take(`Diese Woche: <b>${ss.length} Sätze</b>, ${sum(0)}/${sum(1)} richtig`, `${sum(0)}/${sum(1)} richtig`, String(ss.length));
+        }
       }
+      box.innerHTML = html;
     }
   }
 
@@ -217,9 +240,15 @@ export function initStrength({ store, cloud, exShuffle }) {
     } else if (b.dataset.week) week = Number(b.dataset.week);
     else if (b.dataset.unit) unit = b.dataset.unit;
     else if (b.dataset.take) {
-      const input = b.closest('.kr-ex').querySelector('[data-field="value"]');
+      const row = b.closest('.kr-ex');
+      const input = row.querySelector('[data-field="value"]');
       input.value = b.dataset.take;
+      const reps = row.querySelector('[data-field="reps"]');
+      if (b.dataset.takeReps && !reps.value) reps.value = b.dataset.takeReps;
       input.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    } else if (b.dataset.run) {
+      onRun(b.dataset.run);
       return;
     } else return;
     render();
@@ -289,7 +318,7 @@ export function initStrength({ store, cloud, exShuffle }) {
     const avail = METRICS.filter((mt) => list.some((e) => e.num[mt.key] != null));
     if (!avail.some((mt) => mt.key === histMetric)) histMetric = avail[0]?.key ?? 'kg';
     const metric = METRICS.find((mt) => mt.key === histMetric);
-    const lowerBetter = ex.shuttle && histMetric === 's';
+    const lowerBetter = ex.time && histMetric === 's';
     const byWeek = new Map();
     for (const e of list) {
       const v = e.num[histMetric];

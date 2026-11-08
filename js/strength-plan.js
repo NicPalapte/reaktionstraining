@@ -22,6 +22,31 @@ export const COOLDOWN = [
   { id: 'trizeps-dehnen', name: 'Trizeps', target: '1 × 40 s/Seite, nur schmerzfrei' },
 ];
 
+// Sprint-Einheit: Aufwärmen als Liste, Übungen mit Ausführung (how) und optional App-Drill (app):
+// shuffle = 5-10-5 mit Kamera, spider = Spider-Drill mit Kamera, brake = Reaktionsdrill nur Abbremsen, decoy = Reaktionsdrill.
+export const SPRINT_WARMUP = [
+  { id: 'sp-einlaufen', name: 'Einlaufen locker', target: '5 min' },
+  { id: 'sp-abc', name: 'Lauf-ABC: Skippings, Anfersen, Hopserlauf, Seitgalopp', target: 'je 2 × 15 m' },
+  { id: 'sp-mobil', name: 'Beinpendel und Ausfallschritt mit Rotation', target: 'je 10/Seite' },
+  { id: 'sp-steiger', name: 'Steigerungsläufe', target: '2–3 × 30 m auf 80–90 %' },
+];
+const HOW = {
+  sprint20: 'Aus der Schrittstellung maximal beschleunigen, die ersten Schritte flach und kraftvoll, dann aufrichten. Zurückgehen ist die Pause. Zeit mit Stoppuhr oder ohne, dann nur Gefühl notieren.',
+  shuttle: 'Start in der Mitte, 5 m zur einen Linie, 10 m zur anderen, 5 m zurück durch die Mitte. Linie mit der Hand berühren, tief umsetzen. In der App gibt der Pfeil die Startseite vor und die Zeit wird gemessen.',
+  spider: 'Fünf Hütchen im Halbkreis, ca. 3 m um die Mitte: links, vorne-links, vorne, vorne-rechts, rechts. Von der Mitte zu jedem Hütchen und zurück durch die Mitte (auf dem Platz: Grundlinienmitte, Ecken und Aufschlaglinie). In der App steht das Gerät ca. 6 m vor der Mitte, „vorne“ ist Richtung Gerät, der Pfeil zeigt das nächste Hütchen.',
+  brake: '2–3 Schritte kräftig antreten, auf „STOPP“ mit möglichst wenigen Schritten zum Stand: tief, breit, Gewicht über den Füßen, Knie nicht nach innen. In der App ist das der Reaktionsdrill nur mit Abbremsen, „Stopp“ kommt auch als Ansage (Kopfhörer). Bremst du im Bild (Gerät 6–7 m entfernt), werden Bremszeit und -weg gemessen; läufst du aus dem Bild, zählt es ohne Messung.',
+  decoy: 'Pfeil links, rechts oder vorne: los und zurück in die Mitte. Rot: stehen bleiben, auch wenn Grün auf Rot kippt. Optional mit Splitstep und Abbremsen (Einstellungen).',
+  start10: 'Explosiv 10 m aus wechselnden Startpositionen: Splitstep, seitlich, rückwärts mit Drehung.',
+  seil: 'Auf dem Ballen, kurzer Bodenkontakt, Knie leicht gebeugt. Seite wechseln, bevor die Spannung nachlässt.',
+};
+const sprint = {
+  s20: (target) => x('sprint-20m', '20-m-Sprint', target, { how: HOW.sprint20, time: true, ph: '3,20 s' }),
+  shuttle: (target) => x('shuttle', '5-10-5 Shuttle', target, { shuttle: true, time: true, app: 'shuffle', how: HOW.shuttle }),
+  spider: (target) => x('spider', 'Spider-Drill', target, { time: true, app: 'spider', how: HOW.spider, ph: '12,40 s' }),
+  brake: (target) => x('abbremsen', 'Abbremsen (Stopp-Drill)', target, { app: 'brake', how: HOW.brake, ph: 'Ø 0,55 s' }),
+  decoy: (target) => x('reaktion', 'Reaktionsdrill', target, { app: 'decoy', how: HOW.decoy, ph: '15/16 richtig' }),
+};
+
 const A = 'Beine & Rumpf';
 const B = 'Oberkörper + Trizeps';
 const C = 'Hinge & Ganzkörper + Trizeps';
@@ -83,8 +108,14 @@ export const PHASES = [
       },
       {
         id: 'S', title: 'Sprint', name: '', gym: false,
-        intro: 'Aufwärmen · 20 m 6–8 × · 5-10-5 4–6 × · Spider 3 × · Abbremsen 5 ×',
-        items: [x('shuttle', 'Shuttle bester', 's', { shuttle: true })],
+        warmup: SPRINT_WARMUP,
+        intro: 'Volle Pausen, jede Wiederholung mit voller Spannung. Deload W8: halber Umfang.',
+        items: [
+          sprint.s20('6–8 ×, Pause 90 s'),
+          sprint.shuttle('4–6 ×, Pause 60–90 s'),
+          sprint.spider('3 ×, Pause 2 min'),
+          sprint.brake('5 ×'),
+        ],
       },
     ],
   },
@@ -146,8 +177,15 @@ export const PHASES = [
       },
       {
         id: 'S', title: 'Sprint', name: '', gym: false,
-        intro: 'Wie P2 + Reaktionsdrill 4–6 × · bei Glätte: Halle/Schlitten/Skierg · W13 halb',
-        items: [x('shuttle', 'Shuttle bester', 's', { shuttle: true })],
+        warmup: SPRINT_WARMUP,
+        intro: 'Wie P2 plus Reaktionsdrill. Bei Glätte: Halle, Schlitten oder Skierg. W13: halber Umfang.',
+        items: [
+          sprint.s20('6–8 ×, Pause 90 s'),
+          sprint.shuttle('4–6 ×, Pause 60–90 s'),
+          sprint.spider('3 ×, Pause 2 min'),
+          sprint.brake('5 ×'),
+          sprint.decoy('4–6 Sätze'),
+        ],
       },
     ],
   },
@@ -202,8 +240,15 @@ export const PHASES = [
       },
       {
         id: 'S', title: 'Sprint', name: '35 min', gym: false,
-        intro: '6 × 10-m-Start · Reaktion 6 × · Seil einbeinig · Abbremsen 5 ×',
-        items: [x('shuttle', 'Shuttle bester', 's', { shuttle: true })],
+        warmup: SPRINT_WARMUP,
+        intro: 'Kurz und schnell: Qualität vor Umfang.',
+        items: [
+          x('start-10m', '10-m-Start', '6 ×, Pause 60 s', { how: HOW.start10, time: true, ph: '1,90 s' }),
+          sprint.decoy('6 Sätze'),
+          x('seil-einbein', 'Seilspringen einbeinig', 'kurze Serien je Bein', { how: HOW.seil }),
+          sprint.brake('5 ×'),
+          sprint.shuttle('optional 1–2 × zur Kontrolle'),
+        ],
       },
     ],
   },
@@ -507,7 +552,7 @@ export function exerciseList() {
         ...(u.block ?? []).map((it) => [it, () => group('SB', 'Schulterblatt-Block')]),
       ]) {
         const prev = map.get(it.id);
-        map.set(it.id, { id: it.id, name: it.name.startsWith('+') ? `${it.name.replace(/^\+\s*/, '')} (Kontrast)` : it.name, shuttle: !!it.shuttle, order: prev?.order ?? map.size, group: prev?.group ?? g() });
+        map.set(it.id, { id: it.id, name: it.name.startsWith('+') ? `${it.name.replace(/^\+\s*/, '')} (Kontrast)` : it.name, shuttle: !!it.shuttle, time: !!it.time, order: prev?.order ?? map.size, group: prev?.group ?? g() });
       }
   return [...map.values()].sort((a, b) => a.group.order - b.group.order || a.order - b.order);
 }

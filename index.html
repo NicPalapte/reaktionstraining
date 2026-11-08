@@ -40,6 +40,20 @@
     </span>
   </button>
 
+  <button class="tile" id="start-spider" type="button">
+    <svg class="court" viewBox="0 0 240 90" aria-hidden="true">
+      <rect x="4" y="4" width="232" height="82" rx="6" class="court-bg"/>
+      <circle cx="120" cy="74" r="5" class="dot"/>
+      <path d="M114 74 H46 M120 68 L72 34 M120 68 V16 M120 68 L168 34 M126 74 H194" class="run"/>
+      <circle cx="40" cy="74" r="5" class="dot"/><circle cx="66" cy="30" r="5" class="dot"/><circle cx="120" cy="12" r="5" class="dot"/><circle cx="174" cy="30" r="5" class="dot"/><circle cx="200" cy="74" r="5" class="dot"/>
+    </svg>
+    <span class="tile-body">
+      <span class="tile-title">Spider-Drill</span>
+      <span class="tile-text">Fünf Hütchen im Halbkreis, nach jedem zurück durch die Mitte. Der Pfeil zeigt das nächste, die Zeit läuft mit.</span>
+      <span class="tile-meta" id="meta-spider"></span>
+    </span>
+  </button>
+
   <button class="tile" id="start-decoy" type="button">
     <svg class="court" viewBox="0 0 240 90" aria-hidden="true">
       <rect x="4" y="4" width="232" height="82" rx="6" class="court-bg"/>
@@ -50,7 +64,7 @@
     </svg>
     <span class="tile-body">
       <span class="tile-title">Reaktionsdrill</span>
-      <span class="tile-text">Pfeil links, rechts oder vorne: laufen. Rot: nichts tun. Optional mit Fake-Signalen und Splitstep.</span>
+      <span class="tile-text">Pfeil links, rechts oder vorne: laufen. Rot: nichts tun. STOPP im Lauf: abbremsen. Optional mit Fake-Signalen und Splitstep.</span>
       <span class="tile-meta" id="meta-decoy"></span>
     </span>
   </button>
@@ -77,6 +91,8 @@
       <li>Etwa 5 m Abstand. Du darfst beim Lauf aus dem Bild laufen, du musst nur in der Mitte gut zu sehen sein.</li>
       <li>Bildschirm bleibt während der Übung an. Das Gerät nicht sperren.</li>
       <li>Gute Beleuchtung, nicht gegen die Sonne filmen.</li>
+      <li>Spider: Hütchen ca. 3 m um die Mitte, „vorne“ ist Richtung Gerät, Gerät ca. 6 m vor der Mitte.</li>
+      <li>Abbremsen (STOPP im Lauf): „Stopp“ kommt auch als Ansage, gut mit Kopfhörern. Gemessen wird nur, wenn du im Bild zum Stehen kommst (Gerät dafür 6–7 m entfernt).</li>
     </ul>
   </details>
 </main>
@@ -118,6 +134,7 @@
 
   <div class="seg" role="tablist" aria-label="Übung">
     <button type="button" role="tab" class="on" data-ex="shuffle_5_10_5">5-10-5</button>
+    <button type="button" role="tab" data-ex="spider_drill">Spider</button>
     <button type="button" role="tab" data-ex="decoy_court">Reaktion</button>
     <button type="button" role="tab" data-ex="decoy_couch">Spiel</button>
     <button type="button" role="tab" data-ex="strength">Kraft</button>
@@ -194,6 +211,8 @@
   <div class="card form">
     <label class="field switch"><span>Ton beim Signal</span><input type="checkbox" data-key="sound"></label>
     <label class="field switch"><span>Befehle ansagen</span><input type="checkbox" data-key="voice"></label>
+    <button type="button" class="btn ghost small" id="btn-test-audio">Ton und Ansage testen</button>
+    <p class="hint">Am iPhone: Stummschalter aus, Lautstärke hoch. Kopfhörer vor dem Start verbinden. Mit Ansage werden Richtung, STOPP/Stehen, Zeiten und Fehler gesprochen.</p>
   </div>
 
   <div class="card form">
@@ -211,9 +230,18 @@
     <label class="field switch"><span>Vorne</span><input type="checkbox" data-key="cmdFront"></label>
     <label class="field switch"><span>Rote Aufgaben (nichts tun)</span><input type="checkbox" data-key="decoyStop"></label>
     <label class="field switch"><span>Fake-Signale (Grün kippt auf Rot)</span><input type="checkbox" data-key="decoyFlip"></label>
+    <label class="field switch"><span>Abbremsen (STOPP im Lauf)</span><input type="checkbox" data-key="decoyBrake"></label>
+    <label class="field"><span>Aufgaben im Stopp-Drill</span><input type="number" min="1" max="30" inputmode="numeric" data-key="brakeRounds"></label>
     <label class="field switch"><span>Splitstep vor dem Pfeil</span><input type="checkbox" data-key="splitStep"></label>
     <label class="field"><span>Pause nach „Split!“ (s)</span><input type="number" min="0.3" max="2" step="0.1" inputmode="decimal" data-key="splitGap"></label>
-    <p class="hint">Mit Splitstep kommt vor jedem Pfeil „Split!“, gemessen wird ab dem Pfeil.</p>
+    <p class="hint">Mit Splitstep kommt vor jedem Pfeil „Split!“, gemessen wird ab dem Pfeil. Abbremsen gibt es nur links/rechts: kurz antreten, auf STOPP so schnell wie möglich stehen. Gemessen werden Bremszeit und Bremsweg. Den Stopp-Drill (nur Abbremsen) startest du im Sprint-Block.</p>
+  </div>
+
+  <div class="card form">
+    <h2>Spider-Drill</h2>
+    <label class="field"><span>Durchgänge pro Satz</span><input type="number" min="1" max="10" inputmode="numeric" data-key="spiderRounds"></label>
+    <label class="field switch"><span>Reihenfolge zufällig</span><input type="checkbox" data-key="spiderRandom"></label>
+    <p class="hint">Aus: klassisch links, vorne-links, vorne, vorne-rechts, rechts. Zufällig ist zusätzlich Reaktionstraining; die Zeiten sind dann nicht direkt mit klassisch vergleichbar.</p>
   </div>
 
   <div class="card form">

@@ -1,7 +1,7 @@
 // Simulierter Tracker für Tests ohne Kamera: App mit ?sim=1 öffnen.
 // Gleiche Schnittstelle wie PoseTracker. Per Schieberegler (oder Auto-Athlet) bewegen.
 
-import { shuffleTrajectory, commandTrajectory } from './sim-trajectory.js';
+import { shuffleTrajectory, commandTrajectory, spiderLegTrajectory, brakeTrajectory } from './sim-trajectory.js';
 
 // Hochformat: 720 x 1280 Pixel, 5 m Bildbreite auf Höhe der Person, Rumpflänge 0,5 m = 72 Pixel.
 const VW = 720;
@@ -91,6 +91,25 @@ export class SimTracker {
         return { m: s.dx * 0.5, r: s.r }; // Rumpflängen -> Meter
       },
     };
+  }
+
+  /** Spider: ein Weg zum Hütchen und zurück. */
+  runSpiderLeg(target) {
+    const traj = spiderLegTrajectory({ target, reactS: 0.2 + Math.random() * 0.15 });
+    this.anim = { t0: performance.now(), endS: traj.endS + 0.2, fn: (t) => ({ m: traj.sample(t).m, r: traj.sample(t).r }) };
+  }
+
+  /** Stopp-Drill: loslaufen, auf brake() abbremsen, danach zurück in die Mitte. */
+  runBrake(command) {
+    const traj = brakeTrajectory({ dir: command === 'left' ? -1 : 1, reactS: 0.25 + Math.random() * 0.1, brakeReactS: 0.15 + Math.random() * 0.1 });
+    const t0 = performance.now();
+    this.brakeTraj = { traj, t0 };
+    this.anim = { t0, endS: 8, fn: (t) => ({ m: traj.sample(t).dx * 0.5, r: 1 }) };
+  }
+
+  brake() {
+    const b = this.brakeTraj;
+    if (b) b.traj.setBrake((performance.now() - b.t0) / 1000);
   }
 
   /** Steht für die Kalibrierung in der Mitte (für Tests). */

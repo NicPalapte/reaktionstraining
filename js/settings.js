@@ -8,6 +8,10 @@ export const DEFAULT_SETTINGS = {
   decoyRounds: 16, // Aufgaben pro Satz (Reaktionsdrill)
   decoyStop: true, // rote Aufgaben: nichts tun
   decoyFlip: true, // Fake-Signale: Grün kippt auf Rot
+  decoyBrake: true, // Abbremsen: im Lauf kommt STOPP
+  brakeRounds: 5, // Stopp-Drill aus dem Sprint-Block
+  spiderRounds: 3, // Durchgänge pro Satz (Spider)
+  spiderRandom: true, // Reihenfolge der Hütchen zufällig statt klassisch
   splitStep: false, // vor dem Pfeil kommt "Split!"
   splitGap: 0.7, // mittlere Pause zwischen Split und Pfeil (s)
   showCamera: false, // Kamerabild nach der Kalibrierung anzeigen

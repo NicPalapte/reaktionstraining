@@ -131,8 +131,13 @@ class Cloud {
           const { error } = await this.sb.from(table).upsert(up.slice(i, i + 200), { onConflict: 'id', ignoreDuplicates: true });
           if (error) {
             // Prüfregel verletzt: Schema in Supabase ist älter als die App. Rest trotzdem weiter abgleichen.
-            if (error.code === '23514') schemaOld = true;
-            else throw error;
+            // Dann einzeln nachschieben, damit nur die neuen Übungen (z. B. Spider) liegen bleiben.
+            if (error.code !== '23514') throw error;
+            schemaOld = true;
+            for (const row of up.slice(i, i + 200)) {
+              const one = await this.sb.from(table).upsert([row], { onConflict: 'id', ignoreDuplicates: true });
+              if (one.error && one.error.code !== '23514') throw one.error;
+            }
           }
         }
         for (const r of remote) if (!localIds.has(r.id)) await put(r);
@@ -140,7 +145,7 @@ class Cloud {
       const strengthOk = await this.syncStrength();
       this.lastSync = new Date();
       if (!strengthOk) this.lastError = 'Krafttraining wird nur lokal gespeichert: bitte supabase/migration-3-kraft.sql im SQL Editor ausführen.';
-      if (schemaOld) this.lastError = 'Das Supabase-Schema ist veraltet: bitte supabase/migration-2-spiele.sql im SQL Editor ausführen.';
+      if (schemaOld) this.lastError = 'Das Supabase-Schema ist veraltet: bitte supabase/migration-4-spider.sql im SQL Editor ausführen.';
     } catch (e) {
       console.warn('Abgleich fehlgeschlagen', e);
       this.lastError = this.msg(e);

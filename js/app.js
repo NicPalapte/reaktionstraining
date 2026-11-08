@@ -3,6 +3,7 @@ import { loadSettings, saveSettings, loadCalibration, saveCalibration, DEFAULT_S
 import { ShuffleEngine } from './shuffle-engine.js';
 import { CommandEngine } from './command-engine.js';
 import { DecoyEngine } from './decoy-engine.js';
+import { SpiderEngine } from './spider-engine.js';
 import { initCouch } from './couch-ui.js';
 import { initStrength } from './strength-ui.js';
 import { Calibrator, makeSample } from './calibration.js';
@@ -19,6 +20,7 @@ const EX_SHUFFLE = 'shuffle_5_10_5';
 const EX_COMMANDS = 'commands';
 const EX_DECOY = 'decoy_court';
 const EX_COUCH = 'decoy_couch';
+const EX_SPIDER = 'spider_drill';
 
 let settings = loadSettings();
 let session = null;
@@ -29,7 +31,7 @@ const fmtS = (ms) => `${fmtSec(ms)} s`;
 const fmtMs = (ms) => `${Math.round(ms)} ms`;
 const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
 const dayKey = (iso) => new Date(iso).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
-const dirLabel = { left: 'links', right: 'rechts', front: 'vorne' };
+const dirLabel = { left: 'links', right: 'rechts', front: 'vorne', 'front-left': 'vorne links', 'front-right': 'vorne rechts' };
 const fmtDur = (ms) => {
   const s = Math.round(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} min`;
@@ -57,6 +59,8 @@ async function refreshHome() {
   const dec = all.filter((x) => x.exercise === EX_DECOY);
   const splitNote = settings.splitStep ? ' · mit Splitstep' : '';
   $('#meta-decoy').textContent = (dec.length ? `${dec.length} Einheiten` : 'Noch keine Einheiten') + splitNote;
+  const spi = (await store.listTrials(EX_SPIDER)).filter((t) => t.valid && t.run_ms != null);
+  $('#meta-spider').textContent = spi.length ? `Bestzeit ${fmtS(Math.min(...spi.map((t) => t.run_ms)))} · ${spi.length} ${spi.length === 1 ? 'Durchgang' : 'Durchgänge'}` : 'Noch keine Zeiten';
   const cou = all.filter((x) => x.exercise === EX_COUCH);
   $('#meta-couch').textContent = cou.length ? `Highscore ${Math.max(...cou.map((x) => x.meta?.score ?? 0))} · ${cou.length} Spiele` : 'Noch kein Spiel';
 }
@@ -83,6 +87,13 @@ document.querySelectorAll('[data-key]').forEach((el) => {
     saveSettings(settings);
     refreshSettings();
   });
+});
+audio.keepAlive();
+$('#btn-test-audio').addEventListener('click', () => {
+  audio.unlock();
+  audio.beep(1046, 160);
+  setTimeout(() => audio.speak('Links. Stopp.'), 250);
+  setTimeout(() => audio.beep(330, 260, 0.35), 1600);
 });
 $('#btn-forget-cal').addEventListener('click', () => {
   try {
@@ -112,10 +123,13 @@ document.addEventListener('visibilitychange', () => {
 
 // ---------- Training ----------
 class Session {
-  constructor(kind) {
+  constructor(kind, { preset = null, returnTo = 'home' } = {}) {
     this.kind = kind;
-    this.exercise = kind === 'shuffle' ? EX_SHUFFLE : kind === 'decoy' ? EX_DECOY : EX_COMMANDS;
+    this.preset = preset; // 'brake': Reaktionsdrill nur mit Abbremsen (Stopp-Drill im Sprint-Block)
+    this.returnTo = returnTo;
+    this.exercise = { shuffle: EX_SHUFFLE, decoy: EX_DECOY, spider: EX_SPIDER }[kind] ?? EX_COMMANDS;
     this.decoyReact = [];
+    this.brakes = [];
     this.sessionId = newSessionId();
     this.phase = 'loading';
     this.trials = [];
@@ -133,7 +147,7 @@ class Session {
     this.resetHud();
     this.setLoading('Kamera wird gestartet', 'Erlaube den Kamerazugriff, wenn Safari fragt.');
     lockScreen();
-    const prior = (await store.listTrials(EX_SHUFFLE)).filter((t) => t.valid && t.run_ms != null);
+    const prior = (await store.listTrials(this.kind === 'spider' ? EX_SPIDER : EX_SHUFFLE)).filter((t) => t.valid && t.run_ms != null);
     this.best = prior.length ? Math.min(...prior.map((t) => t.run_ms)) : null;
 
     try {
@@ -262,10 +276,23 @@ class Session {
         params: { minDelayMs, maxDelayMs },
         onEvent: (n, d) => this.onShuffleEvent(n, d),
       });
+    } else if (this.kind === 'spider') {
+      this.eng = new SpiderEngine({
+        params: { random: settings.spiderRandom, minDelayMs, maxDelayMs },
+        onEvent: (n, d) => this.onSpiderEvent(n, d),
+      });
     } else if (this.kind === 'decoy') {
-      const commands = [settings.cmdLeft && 'left', settings.cmdRight && 'right', settings.cmdFront && 'front'].filter(Boolean);
-      const weights = { go: 0.55, stop: settings.decoyStop ? 0.25 : 0, flip: settings.decoyFlip ? 0.2 : 0 };
+      let commands = [settings.cmdLeft && 'left', settings.cmdRight && 'right', settings.cmdFront && 'front'].filter(Boolean);
+      let weights = { go: 0.55, stop: settings.decoyStop ? 0.25 : 0, flip: settings.decoyFlip ? 0.2 : 0, brake: settings.decoyBrake ? 0.2 : 0 };
       this.split = settings.splitStep;
+      this.target = settings.decoyRounds;
+      if (this.preset === 'brake') {
+        weights = { brake: 1 };
+        commands = commands.filter((c) => c !== 'front');
+        if (!commands.length) commands = ['left', 'right'];
+        this.split = false;
+        this.target = settings.brakeRounds;
+      }
       this.eng = new DecoyEngine({
         params: {
           commands: commands.length ? commands : ['left', 'right', 'front'],
@@ -289,6 +316,7 @@ class Session {
     this.trials = [];
     this.cmdCounts = { left: 0, right: 0, front: 0 };
     this.decoyReact = [];
+    this.brakes = [];
     this.setStart = Date.now();
     this.saved = false;
     this.updateCount();
@@ -297,7 +325,8 @@ class Session {
 
   updateCount() {
     if (this.kind === 'shuffle') $('#hud-count').textContent = `${this.trials.length} / ${settings.rounds}`;
-    else if (this.kind === 'decoy') $('#hud-count').textContent = `${this.eng?.rounds ?? 0} / ${settings.decoyRounds}`;
+    else if (this.kind === 'spider') $('#hud-count').textContent = `${this.trials.length} / ${settings.spiderRounds}`;
+    else if (this.kind === 'decoy') $('#hud-count').textContent = `${this.eng?.rounds ?? 0} / ${this.target}`;
     else $('#hud-count').textContent = `${this.eng?.issued ?? 0} / ${settings.commandRounds}`;
   }
 
@@ -356,12 +385,13 @@ class Session {
   }
 
   // ----- Signale -----
-  showSignal(direction, kind = '') {
+  /** say = Richtung ansagen (beim Abbremsen nicht, damit das „Stopp“ nie eine laufende Ansage abbrechen muss). */
+  showSignal(direction, kind = '', say = true) {
     $('#signal').dataset.kind = kind;
     const svg = $('#signal-arrow');
     svg.toggleAttribute('hidden', kind === 'split');
-    svg.setAttribute('class', direction === 'left' ? 'left' : direction === 'front' ? 'front' : '');
-    $('#signal-label').textContent = kind === 'split' ? 'SPLIT!' : kind === 'stop' ? 'STEHEN' : direction === 'left' ? 'LINKS' : direction === 'right' ? 'RECHTS' : 'VORNE';
+    svg.setAttribute('class', direction && direction !== 'right' ? direction : '');
+    $('#signal-label').textContent = kind === 'split' ? 'SPLIT!' : kind === 'stop' ? 'STEHEN' : (dirLabel[direction] ?? 'vorne').toUpperCase();
     $('#result').hidden = true;
     $('#signal').hidden = false;
     if (settings.sound) audio.beep(kind === 'split' ? 784 : 1046, kind === 'split' ? 120 : 160);
@@ -369,7 +399,7 @@ class Session {
       if (settings.voice) audio.speak('Split');
       return;
     }
-    if ((this.kind === 'commands' || (this.kind === 'decoy' && kind === 'go')) && settings.voice) audio.speak(dirLabel[direction]);
+    if (settings.voice && say) audio.speak(kind === 'stop' ? 'Stehen' : dirLabel[direction]);
     // Zeitpunkt, an dem der Pfeil wirklich auf dem Bildschirm stand
     const eng = this.eng;
     requestAnimationFrame(() => requestAnimationFrame(() => eng?.confirmArrow?.(performance.now())));
@@ -385,6 +415,7 @@ class Session {
     $('#result').hidden = true;
     this.hud(reason, sub, 'notice');
     if (settings.sound) audio.beep(220, 260);
+    if (settings.voice) audio.speak(reason);
   }
 
   // ----- 5-10-5 -----
@@ -454,6 +485,7 @@ class Session {
       grid.innerHTML = `<div><b>${fmtMs(r.reaction_ms)}</b><span>Reaktion</span></div><div><b>${fmtS(r.total_ms)}</b><span>Pfeil bis Ziel</span></div>`;
       tag.hidden = !isBest;
       tag.textContent = 'Neue Bestzeit';
+      if (settings.voice) audio.speak(audio.sayNum(r.run_ms / 1000, 2) + (isBest ? ', Bestzeit' : ''));
     } else {
       $('#result-label').textContent = 'Nicht gewertet';
       main.textContent = r.reason;
@@ -461,6 +493,7 @@ class Session {
       grid.innerHTML = r.reaction_ms != null ? `<div><b>${fmtMs(r.reaction_ms)}</b><span>Reaktion</span></div>` : '';
       tag.hidden = true;
       if (settings.sound) audio.beep(220, 260);
+      if (settings.voice) audio.speak(r.reason);
     }
     $('#result').hidden = false;
 
@@ -480,7 +513,10 @@ class Session {
           this.hud(fb?.big ?? 'Mitte', fb?.sub ?? 'Stell dich hin und bleib kurz ruhig.', fb ? 'run' : 'wait');
         } else if (d.state === 'countdown') {
           this.hideSignal();
-          const rules = settings.decoyStop || settings.decoyFlip ? 'Grün: los. Rot: stehen bleiben.' : 'Gleich kommt ein Pfeil.';
+          const rules =
+            this.preset === 'brake'
+              ? 'Grün: kurz antreten. STOPP: sofort abbremsen und stehen.'
+              : [settings.decoyStop || settings.decoyFlip ? 'Grün: los. Rot: stehen bleiben.' : 'Gleich kommt ein Pfeil.', settings.decoyBrake ? 'STOPP im Lauf: abbremsen.' : ''].filter(Boolean).join(' ');
           this.hud('Bereit', this.split ? `Erst „Split!“, dann die Richtung. ${rules}` : rules, 'ready');
         } else if (d.state === 'away') {
           this.hideSignal();
@@ -495,25 +531,35 @@ class Session {
         return;
       case 'signal':
         this.hud('', '', 'command');
-        this.showSignal(d.command, d.type === 'stop' ? 'stop' : 'go');
+        this.showSignal(d.command, d.type === 'stop' ? 'stop' : 'go', d.type !== 'brake');
         if (SIM && $('#sim-auto').checked && d.type === 'go') this.tracker.runCommand(d.command);
+        if (SIM && $('#sim-auto').checked && d.type === 'brake') this.tracker.runBrake(d.command);
+        return;
+      case 'brake':
+        // im Lauf: jetzt abbremsen
+        $('#signal').dataset.kind = 'stop';
+        $('#signal-label').textContent = 'STOPP';
+        if (settings.voice) audio.speak('Stopp'); // zuerst, die Sprachausgabe braucht am längsten
+        if (settings.sound) audio.beep(330, 260, 0.35);
+        if (SIM && $('#sim-auto').checked) this.tracker.brake();
         return;
       case 'flip':
         // gleicher Pfeil, aber jetzt rot: bitte stoppen
         $('#signal').dataset.kind = 'stop';
         $('#signal-label').textContent = 'STEHEN';
         if (settings.sound) audio.beep(330, 220);
+        if (settings.voice) audio.speak('Stehen');
         return;
       case 'result': {
         this.hideSignal();
-        const tag = { go: 'laufen', stop: 'stehen', flip: 'kippen' }[d.type];
+        const tag = { go: 'laufen', stop: 'stehen', flip: 'kippen', brake: 'bremsen' }[d.type];
         store
           .addTrial({
             exercise: EX_DECOY,
             session_id: this.sessionId,
             direction: d.command,
             reaction_ms: d.reaction_ms,
-            run_ms: null,
+            run_ms: d.brake_ms ?? null, // beim Abbremsen: Bremszeit (STOPP bis Stand)
             total_ms: null,
             split_a_ms: null,
             split_b_ms: null,
@@ -523,7 +569,18 @@ class Session {
           .then(() => cloud.scheduleSync())
           .catch((e) => console.warn('Speichern fehlgeschlagen', e));
         if (d.correct && d.reaction_ms != null) this.decoyReact.push(d.reaction_ms);
-        if (d.correct) {
+        if (d.type === 'brake' && d.correct && d.measured) {
+          this.brakes.push({ ms: d.brake_ms, cm: d.brake_cm });
+          this.fb = { big: `${fmtSec(d.brake_ms)} s`, sub: `Bremsweg ${d.brake_cm} cm${d.reaction_ms != null ? ` · Antritt ${d.reaction_ms} ms` : ''}. Zurück in die Mitte.` };
+          if (settings.sound) audio.beep(1318, 90);
+          if (settings.voice) setTimeout(() => audio.speak(audio.sayNum(d.brake_ms / 1000, 2)), 600);
+        } else if (d.type === 'brake' && d.correct) {
+          this.fb = { big: 'Gestoppt', sub: 'Außerhalb des Bildes, ohne Messung. Zurück in die Mitte.' };
+          if (settings.sound) audio.beep(1318, 90);
+        } else if (d.type === 'brake') {
+          this.fb = { big: d.reason, sub: 'Zurück in die Mitte.' };
+          if (settings.sound) audio.beep(220, 260);
+        } else if (d.correct) {
           this.fb = { big: d.type === 'go' ? (d.reaction_ms != null ? `${d.reaction_ms} ms` : 'Gut') : 'Richtig!', sub: d.type === 'go' ? 'Zurück in die Mitte.' : tag === 'kippen' ? 'Stark: nicht reingefallen.' : 'Gut gehalten.' };
           if (settings.sound) audio.beep(1318, 90);
         } else {
@@ -537,13 +594,101 @@ class Session {
         return this.notice('Keine Bewegung erkannt', 'Ich warte, bis du wieder bereit stehst.');
       case 'round':
         this.updateCount();
-        if (d.rounds >= settings.decoyRounds) {
+        if (d.rounds >= this.target) {
           this.eng.stop();
           this.finishSet();
         }
         return;
       default:
     }
+  }
+
+  // ----- Spider -----
+  onSpiderEvent(name, d) {
+    switch (name) {
+      case 'state':
+        if (d.state === 'wait_center') {
+          this.hideSignal();
+          $('#result').hidden = true;
+          this.hud('Mitte', 'Stell dich in die Mitte, Gesicht zum Gerät.', 'wait');
+        } else if (d.state === 'countdown') {
+          this.hud('Bereit', settings.spiderRandom ? 'Der Pfeil zeigt das nächste Hütchen.' : 'Links, vorne-links, vorne, vorne-rechts, rechts.', 'ready');
+        } else if (d.state === 'back') {
+          this.hideSignal();
+          this.hud('Mitte', 'Zurück durch die Mitte.', 'run');
+        }
+        return;
+      case 'target':
+        this.hud('', '', 'go');
+        this.showSignal(d.target, 'go');
+        $('#hud-count').textContent = `Hütchen ${d.leg} / ${d.of}`;
+        if (SIM && $('#sim-auto').checked) this.tracker.runSpiderLeg(d.target);
+        return;
+      case 'result':
+        return this.onSpiderResult(d);
+      case 'abort':
+        this.updateCount();
+        return this.notice(d.reason);
+      default:
+    }
+  }
+
+  onSpiderResult(r) {
+    this.hideSignal();
+    const rec = {
+      exercise: EX_SPIDER,
+      session_id: this.sessionId,
+      direction: null,
+      reaction_ms: null,
+      run_ms: r.valid ? r.total_ms : null,
+      total_ms: r.total_ms,
+      split_a_ms: null,
+      split_b_ms: null,
+      valid: r.valid,
+      reason: r.valid ? (r.random ? 'zufällig' : 'klassisch') : r.reason,
+    };
+    store.addTrial(rec).then(() => cloud.scheduleSync()).catch((e) => console.warn('Speichern fehlgeschlagen', e));
+    let isBest = false;
+    if (r.valid) {
+      this.trials.push({ ...rec, legs: r.legs });
+      if (this.best == null || r.total_ms < this.best) {
+        isBest = this.best != null;
+        this.best = r.total_ms;
+      }
+    }
+    this.updateCount();
+    this.hud('', '', 'result');
+    const main = $('#result-main');
+    if (r.valid) {
+      $('#result-label').textContent = `Spider ${r.random ? 'zufällig' : 'klassisch'}`;
+      main.textContent = fmtS(r.total_ms);
+      main.classList.remove('bad');
+      $('#result-grid').innerHTML = r.legs.map((l) => `<div><b>${fmtSec(l.ms)}</b><span>${dirLabel[l.target]}</span></div>`).join('');
+      $('#result-tag').hidden = !isBest;
+      $('#result-tag').textContent = 'Neue Bestzeit';
+      if (settings.sound) audio.beep(1318, 90);
+      if (settings.voice) audio.speak(audio.sayNum(r.total_ms / 1000, 1) + (isBest ? ', Bestzeit' : ''));
+    } else {
+      $('#result-label').textContent = 'Nicht gewertet';
+      main.textContent = r.reason;
+      main.classList.add('bad');
+      $('#result-grid').innerHTML = '';
+      $('#result-tag').hidden = true;
+      if (settings.sound) audio.beep(220, 260);
+      if (settings.voice) audio.speak(r.reason);
+    }
+    $('#result').hidden = false;
+    if (r.valid && this.trials.length >= settings.spiderRounds) {
+      this.eng.stop();
+      setTimeout(() => !this.stopped && this.finishSet(), 3500);
+    }
+  }
+
+  /** Ø Zeit je Hütchen über alle gültigen Durchgänge des Satzes. */
+  spiderLegAvg() {
+    const by = {};
+    for (const t of this.trials) for (const l of t.legs ?? []) (by[l.target] ??= []).push(l.ms);
+    return Object.fromEntries(Object.entries(by).map(([k, v]) => [k, Math.round(avg(v))]));
   }
 
   // ----- Befehle -----
@@ -595,6 +740,18 @@ class Session {
         avg_run_ms: Math.round(avg(runs)),
         avg_reaction_ms: Math.round(avg(this.trials.map((t) => t.reaction_ms))),
       });
+    } else if (this.kind === 'spider') {
+      if (!this.trials.length) return;
+      const runs = this.trials.map((t) => t.run_ms);
+      await store.addSession({
+        exercise: EX_SPIDER,
+        session_id: this.sessionId,
+        rounds: this.trials.length,
+        duration_ms: Date.now() - this.setStart,
+        best_run_ms: Math.min(...runs),
+        avg_run_ms: Math.round(avg(runs)),
+        meta: { random: !!settings.spiderRandom, legs: this.spiderLegAvg() },
+      });
     } else if (this.kind === 'decoy') {
       const done = this.eng?.rounds ?? 0;
       if (!done) return;
@@ -604,7 +761,12 @@ class Session {
         rounds: done,
         duration_ms: Date.now() - this.setStart,
         avg_reaction_ms: this.decoyReact.length ? Math.round(avg(this.decoyReact)) : null,
-        meta: { ...this.eng.stats, split: !!this.split },
+        meta: {
+          ...this.eng.stats,
+          split: !!this.split,
+          ...(this.preset ? { preset: this.preset } : {}),
+          ...(this.brakes.length ? { brake_ms: Math.round(avg(this.brakes.map((b) => b.ms))), brake_cm: Math.round(avg(this.brakes.map((b) => b.cm))) } : {}),
+        },
       });
     } else {
       const done = this.eng?.rounds ?? 0;
@@ -641,18 +803,42 @@ class Session {
       ]
         .map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`)
         .join('');
+    } else if (this.kind === 'spider') {
+      const runs = this.trials.map((t) => t.run_ms);
+      const legs = Object.entries(this.spiderLegAvg()).sort((a, b) => b[1] - a[1]);
+      $('#summary-title').textContent = 'Satz beendet';
+      box.innerHTML = [
+        ['Beste Zeit', fmtS(Math.min(...runs))],
+        ['Ø Zeit', fmtS(avg(runs))],
+        ['Langsamstes Hütchen', legs.length ? `${dirLabel[legs[0][0]]} ${fmtSec(legs[0][1])}` : '–'],
+        ['Dauer', fmtDur(Date.now() - this.setStart)],
+      ]
+        .map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`)
+        .join('');
+    } else if (this.kind === 'decoy' && this.preset === 'brake') {
+      $('#summary-title').textContent = 'Stopp-Drill beendet';
+      const st = this.eng.stats.brake;
+      const b = this.brakes;
+      box.innerHTML = [
+        ['Gestoppt', `${st[0]} / ${st[1]}`],
+        ['Ø Bremszeit', b.length ? fmtS(avg(b.map((x) => x.ms))) : '–'],
+        ['Ø Bremsweg', b.length ? `${Math.round(avg(b.map((x) => x.cm)))} cm` : '–'],
+        ['Ø Antritt', this.decoyReact.length ? fmtMs(avg(this.decoyReact)) : '–'],
+      ]
+        .map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`)
+        .join('');
     } else if (this.kind === 'decoy') {
       $('#summary-title').textContent = 'Einheit beendet';
       const st = this.eng.stats;
-      const okAll = st.go[0] + st.stop[0] + st.flip[0];
-      const totAll = st.go[1] + st.stop[1] + st.flip[1];
+      const okAll = st.go[0] + st.stop[0] + st.flip[0] + st.brake[0];
+      const totAll = st.go[1] + st.stop[1] + st.flip[1] + st.brake[1];
       const dOk = st.stop[0] + st.flip[0];
       const dTot = st.stop[1] + st.flip[1];
       box.innerHTML = [
         ['Richtig', `${okAll} / ${totAll}`],
         ['Ø Reaktion (Laufen)', this.decoyReact.length ? fmtMs(avg(this.decoyReact)) : '–'],
         ['Täuschungen bestanden', dTot ? `${dOk} / ${dTot}` : '–'],
-        ['Dauer', fmtDur(Date.now() - this.setStart)],
+        this.brakes.length ? ['Ø Bremszeit', fmtS(avg(this.brakes.map((x) => x.ms)))] : ['Dauer', fmtDur(Date.now() - this.setStart)],
       ]
         .map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`)
         .join('');
@@ -690,20 +876,27 @@ class Session {
       /* ignorieren */
     }
     session = null;
-    show('home');
+    show(this.returnTo);
   }
 }
 
-function startSession(kind) {
+function startSession(kind, opts) {
   audio.unlock();
-  session = new Session(kind);
+  session = new Session(kind, opts);
   window.__session = session;
   session.start();
 }
 
 $('#start-shuffle').addEventListener('click', () => startSession('shuffle'));
 $('#start-decoy').addEventListener('click', () => startSession('decoy'));
-const strength = initStrength({ store, cloud, exShuffle: EX_SHUFFLE });
+$('#start-spider').addEventListener('click', () => startSession('spider'));
+const strength = initStrength({
+  store,
+  cloud,
+  ex: { shuffle: EX_SHUFFLE, spider: EX_SPIDER, decoy: EX_DECOY },
+  // Start aus dem Sprint-Block: danach zurück zum Krafttraining
+  onRun: (app) => startSession(app === 'brake' ? 'decoy' : app, { preset: app === 'brake' ? 'brake' : null, returnTo: 'strength' }),
+});
 const couch = initCouch({ store, cloud, audio, exCouch: EX_COUCH, settings: () => settings, onExit: () => show('home') });
 $('#start-couch').addEventListener('click', () => {
   audio.unlock();
@@ -748,7 +941,7 @@ async function renderHistory() {
   document.querySelectorAll('#metric-seg button').forEach((b) => b.classList.toggle('on', b.dataset.metric === histMetric));
   $('#hist-shuffle').hidden = histEx !== EX_SHUFFLE;
   $('#hist-commands').hidden = true;
-  $('#hist-games').hidden = histEx !== EX_DECOY && histEx !== EX_COUCH;
+  $('#hist-games').hidden = histEx !== EX_DECOY && histEx !== EX_COUCH && histEx !== EX_SPIDER;
   $('#hist-strength').hidden = histEx !== 'strength';
   $('#store-note').textContent = cloud.user ? 'Gespeichert auf diesem Gerät und in deinem Konto.' : 'Gespeichert nur auf diesem Gerät.';
 
@@ -789,11 +982,20 @@ async function renderHistory() {
           })
           .join('')
       : '<p class="empty">Noch keine Sätze.</p>';
+  } else if (histEx === EX_SPIDER) {
+    const sessions = (await store.listSessions()).filter((s) => s.exercise === EX_SPIDER).reverse();
+    $('#hist-games-title').textContent = 'Spider-Drill';
+    $('#hist-games-list').innerHTML = sessions.length
+      ? sessions
+          .slice(0, 40)
+          .map((x) => `<div class="row"><span class="d">${dayKey(x.created_at)}</span><span>${x.rounds}× ${x.meta?.random ? 'zufällig' : 'klassisch'}</span><span>Best ${fmtS(x.best_run_ms)} · Ø ${fmtS(x.avg_run_ms)}</span></div>`)
+          .join('')
+      : '<p class="empty">Noch keine Sätze.</p>';
   } else if (histEx === EX_DECOY || histEx === EX_COUCH) {
     const sessions = (await store.listSessions()).filter((s) => s.exercise === histEx || (histEx === EX_DECOY && s.exercise === EX_COMMANDS)).reverse();
     $('#hist-games-title').textContent = histEx === EX_DECOY ? 'Einheiten Reaktionsdrill' : 'Reaktionsspiel';
-    const ok = (m) => (m ? ['go', 'stop', 'flip'].reduce((a, k) => a + (m[k]?.[0] ?? 0), 0) : null);
-    const tot = (m) => (m ? ['go', 'stop', 'flip'].reduce((a, k) => a + (m[k]?.[1] ?? 0), 0) : null);
+    const ok = (m) => (m ? ['go', 'stop', 'flip', 'brake'].reduce((a, k) => a + (m[k]?.[0] ?? 0), 0) : null);
+    const tot = (m) => (m ? ['go', 'stop', 'flip', 'brake'].reduce((a, k) => a + (m[k]?.[1] ?? 0), 0) : null);
     $('#hist-games-list').innerHTML = sessions.length
       ? sessions
           .slice(0, 40)
@@ -801,6 +1003,7 @@ async function renderHistory() {
             const react = x.avg_reaction_ms != null ? ` · Ø ${fmtMs(x.avg_reaction_ms)}` : '';
             if (histEx === EX_COUCH) return `<div class="row"><span class="d">${dayKey(x.created_at)}</span><span>${x.meta?.score ?? 0} Punkte</span><span>Level ${x.meta?.level ?? 1}${react}</span></div>`;
             if (x.exercise === EX_COMMANDS) return `<div class="row"><span class="d">${dayKey(x.created_at)}</span><span>${x.rounds} Befehle</span><span>${fmtDur(x.duration_ms)}</span></div>`;
+            if (x.meta?.preset === 'brake') return `<div class="row"><span class="d">${dayKey(x.created_at)}</span><span>Stopp-Drill ${x.meta.brake?.[0] ?? 0} / ${x.meta.brake?.[1] ?? 0}</span><span>${x.meta.brake_ms != null ? `Ø ${fmtS(x.meta.brake_ms)} · ${x.meta.brake_cm} cm` : fmtDur(x.duration_ms)}</span></div>`;
             const sp = x.meta?.split ? ' · Split' : '';
             return `<div class="row"><span class="d">${dayKey(x.created_at)}</span><span>${ok(x.meta)} / ${tot(x.meta)} richtig${sp}</span><span>${fmtDur(x.duration_ms)}${react}</span></div>`;
           })
