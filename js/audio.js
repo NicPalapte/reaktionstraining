@@ -4,6 +4,13 @@
 
 let ctx = null;
 let warmed = false;
+let muted = false;
+
+/** Stumm (Schalter im Drill): keine Töne, keine Ansagen; eine laufende Ansage wird abgebrochen. */
+export function setMuted(on) {
+  muted = !!on;
+  if (muted && 'speechSynthesis' in window) speechSynthesis.cancel();
+}
 
 export function unlock() {
   try {
@@ -30,7 +37,7 @@ export function keepAlive() {
 }
 
 export function beep(freq = 880, ms = 120, gain = 0.25) {
-  if (!ctx) return;
+  if (!ctx || muted) return;
   try {
     if (ctx.state !== 'running') ctx.resume().catch(() => {});
     const o = ctx.createOscillator();
@@ -62,7 +69,7 @@ function pickVoice() {
  * verschluckt in Safari sonst manchmal die neue Ansage.
  */
 export function speak(text) {
-  if (!('speechSynthesis' in window)) return;
+  if (muted || !('speechSynthesis' in window)) return;
   try {
     if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);

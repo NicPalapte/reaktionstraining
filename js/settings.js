@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS = {
   spiderRandom: true, // Reihenfolge der Hütchen zufällig statt klassisch
   splitStep: false, // vor dem Pfeil kommt "Split!"
   splitGap: 0.7, // mittlere Pause zwischen Split und Pfeil (s)
+  muted: false, // Stumm-Schalter oben rechts im Drill
   showCamera: false, // Kamerabild nach der Kalibrierung anzeigen
   minDelay: 1.5,
   maxDelay: 3.5,

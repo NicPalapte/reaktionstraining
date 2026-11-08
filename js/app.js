@@ -89,8 +89,23 @@ document.querySelectorAll('[data-key]').forEach((el) => {
   });
 });
 audio.keepAlive();
+// Stumm-Schalter im Drill (gilt auch für den nächsten Drill)
+function applyMute() {
+  audio.setMuted(settings.muted);
+  const b = $('#btn-mute');
+  b.setAttribute('aria-pressed', String(!!settings.muted));
+  b.setAttribute('aria-label', settings.muted ? 'Ton an' : 'Ton aus');
+}
+$('#btn-mute').addEventListener('click', () => {
+  settings.muted = !settings.muted;
+  saveSettings(settings);
+  applyMute();
+});
+applyMute();
 $('#btn-test-audio').addEventListener('click', () => {
   audio.unlock();
+  audio.setMuted(false); // Test klingt auch, wenn im Drill stumm geschaltet ist
+  setTimeout(applyMute, 2200);
   audio.beep(1046, 160);
   setTimeout(() => audio.speak('Links. Stopp.'), 250);
   setTimeout(() => audio.beep(330, 260, 0.35), 1600);

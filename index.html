@@ -331,7 +331,12 @@
     <div class="hud-top">
       <button type="button" class="icon-btn" id="btn-stop" aria-label="Übung beenden">✕</button>
       <div class="track-dot" id="track-dot" data-on="0" hidden title="Person erkannt"></div>
-      <div class="hud-count" id="hud-count"></div>
+      <div class="hud-right">
+        <div class="hud-count" id="hud-count"></div>
+        <button type="button" class="icon-btn" id="btn-mute" aria-pressed="false" aria-label="Ton aus">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path class="spk" d="M4 9h4l5-4v14l-5-4H4z"/><path class="on" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16 9l6 6M22 9l-6 6"/></svg>
+        </button>
+      </div>
     </div>
     <div class="hud-center">
       <div class="hud-big" id="hud-big"></div>
