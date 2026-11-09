@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EXERCISES, LIB, CATEGORIES, libOf, searchLibrary } from '../js/library.js';
-import { PHASES, WARMUP, COOLDOWN, SPRINT_WARMUP, ROUTINE, applySwap, swapKey, occurrencesOf, swapCandidates, exKey, results, lastResult } from '../js/strength-plan.js';
+import { PHASES, WARMUP, COOLDOWN, SPRINT_WARMUP, ROUTINE, applySwap, addSwap, swapAt, swapKey, occurrencesOf, swapCandidates, exKey, results, lastResult } from '../js/strength-plan.js';
 
 const planItems = () => [
   ...PHASES.flatMap((p) => p.units.flatMap((u) => [...u.items, ...(u.block ?? [])])),
@@ -36,17 +36,38 @@ test('Bibliothek: Suche ohne Groß/Klein und Akzente, Filter nach Kategorie', ()
 
 test('Tauschen: ohne Zeile oder zurückgesetzt bleibt die Übung, sonst kommt die neue mit alter Vorgabe', () => {
   const bss = PHASES.find((p) => p.id === 'P2').units.find((u) => u.id === 'A').items.find((it) => it.id === 'bss');
-  assert.equal(applySwap(bss, undefined), bss);
-  assert.equal(applySwap(bss, { to: '' }), bss);
-  assert.equal(applySwap(bss, { to: 'unbekannt' }), bss);
-  const s = applySwap(bss, { to: 'einbein-kh' });
+  const row = (to, target) => addSwap(undefined, { from: 5, to, target });
+  assert.equal(applySwap(bss, undefined, 6), bss);
+  assert.equal(applySwap(bss, row(''), 6), bss);
+  assert.equal(applySwap(bss, row('unbekannt'), 6), bss);
+  const s = applySwap(bss, row('einbein-kh'), 6);
   assert.deepEqual([s.id, s.name, s.target, s.swappedFrom.id], ['einbein-kh', 'Einbeiniges Kreuzheben', bss.target, 'bss']);
-  assert.equal(applySwap(bss, { to: 'einbein-kh', target: '3 × 10' }).target, '3 × 10');
+  assert.equal(applySwap(bss, row('einbein-kh', '3 × 10'), 6).target, '3 × 10');
   // Kamera-Drill bringt seinen Start-Button mit
-  assert.equal(applySwap(bss, { to: 'spider' }).app, 'spider');
+  assert.equal(applySwap(bss, row('spider'), 6).app, 'spider');
   // Kontrast-Variante auf ihre eigene Bibliotheksübung getauscht: keine Änderung
   const k = PHASES.find((p) => p.id === 'P3').units.find((u) => u.id === 'A').items.find((it) => it.id === 'sprungkniebeuge-kontrast');
-  assert.equal(applySwap(k, { to: 'sprungkniebeuge' }), k);
+  assert.equal(applySwap(k, addSwap(undefined, { from: 9, to: 'sprungkniebeuge' }), 10), k);
+});
+
+test('Tauschen: gilt erst ab der Woche, vergangene Wochen bleiben, spätere Änderungen überschreiben nur die Zukunft', () => {
+  const bss = { id: 'bss', name: 'Bulgarian Split Squat', target: '3 × 8' };
+  let r = addSwap(undefined, { from: 7, to: 'einbein-kh' });
+  assert.equal(applySwap(bss, r, 6), bss); // W6 schon trainiert
+  assert.equal(applySwap(bss, r, 7).id, 'einbein-kh');
+  assert.equal(applySwap(bss, r, 7).swapFrom, 7);
+  r = addSwap(r, { from: 8, to: 'hipthrust', target: '3 × 10' });
+  assert.deepEqual([6, 7, 8, 9].map((w) => applySwap(bss, r, w).id), ['bss', 'einbein-kh', 'hipthrust', 'hipthrust']);
+  // Zurücksetzen ab W9: W7 und W8 bleiben getauscht
+  r = addSwap(r, { from: 9, to: '' });
+  assert.deepEqual([7, 8, 9, 10].map((w) => applySwap(bss, r, w).id), ['einbein-kh', 'hipthrust', 'bss', 'bss']);
+  // Erneut ab W8 tauschen ersetzt W8 und alles danach
+  r = addSwap(r, { from: 8, to: 'kreuzheben' });
+  assert.deepEqual(r.hist.map((h) => [h.from, h.to]), [[7, 'einbein-kh'], [8, 'kreuzheben']]);
+  // Gleicher Stand wie davor: keine neue Stufe
+  assert.equal(addSwap(r, { from: 10, to: 'kreuzheben' }).hist.length, 2);
+  // Alte Zeilen ohne hist gelten ab W1
+  assert.equal(swapAt({ to: 'hipthrust' }, 1).to, 'hipthrust');
 });
 
 test('Tauschen: Vorkommen im Plan und Kandidaten', () => {

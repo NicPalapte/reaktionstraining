@@ -555,23 +555,48 @@ export function exerciseList() {
 export const historyOf = (all, ex) => all.filter((e) => e.ex === ex).sort((a, b) => a.week - b.week || a.unit.localeCompare(b.unit));
 
 // ---------- Übungen tauschen (Plan-Editor light) ----------
-// Ein Tausch gilt für eine Übung in einer Einheit einer Phase, für alle Wochen. Gespeichert als Zeile
-// swap|Phase|Einheit|Übung mit to = Bibliotheks-ID (leer = zurückgesetzt) und optional eigener Vorgabe (target).
-// Einträge der getauschten Übung laufen unter ihrer eigenen ID, so passen "Zuletzt" und Verlauf zur neuen Übung.
+// Ein Tausch gilt für eine Übung in einer Einheit einer Phase, ab einer Woche. Vergangene Wochen bleiben, wie sie
+// trainiert wurden. Gespeichert als Zeile swap|Phase|Einheit|Übung mit hist = [{ from, to, target }] (nach from
+// sortiert, to = Bibliotheks-ID, leer = zurück zur Planübung). Einträge der getauschten Übung laufen unter ihrer
+// eigenen ID, so passen "Zuletzt" und Verlauf zur neuen Übung.
 
 export const swapKey = (phase, unit, item) => `swap|${phase}|${unit}|${item}`;
 
+/** Tausch-Stufen einer Zeile; alte Zeilen ohne hist ({ to, target }) gelten ab W1. */
+const swapHist = (row) => (Array.isArray(row?.hist) ? row.hist : row?.to != null ? [{ from: 1, to: row.to, target: row.target }] : []);
+
+/** Für die Woche gültige Stufe oder null. */
+export function swapAt(row, week) {
+  let cur = null;
+  for (const h of swapHist(row)) if (h.from <= week && (!cur || h.from >= cur.from)) cur = h;
+  return cur;
+}
+
 /**
- * Plan-Eintrag nach einem Tausch.
+ * Neue Tausch-Stufe ab einer Woche. Spätere Stufen fallen weg, frühere bleiben unverändert.
+ * @returns {{hist: object[]}} Felder für die gespeicherte Zeile
+ */
+export function addSwap(row, { from, to, target = '' }) {
+  const keep = swapHist(row).filter((h) => h.from < from);
+  const prev = keep.length ? keep[keep.length - 1] : null;
+  // Gleicher Stand wie davor: keine neue Stufe nötig
+  if ((prev?.to ?? '') === to && (!to || (prev?.target ?? '') === target)) return { hist: keep, to: undefined, target: undefined };
+  return { hist: [...keep, { from, to, target: to ? target : '' }], to: undefined, target: undefined };
+}
+
+/**
+ * Plan-Eintrag in einer Woche nach einem Tausch.
  * @param {object} item Eintrag aus dem Plan
- * @param {object|undefined} swap gespeicherte Zeile
+ * @param {object|undefined} row gespeicherte Zeile
+ * @param {number} week Trainingswoche
  * @returns {object} der Eintrag selbst oder die getauschte Übung mit swappedFrom
  */
-export function applySwap(item, swap) {
-  const to = swap?.to && LIB.get(swap.to);
+export function applySwap(item, row, week) {
+  const h = swapAt(row, week);
+  const to = h?.to && LIB.get(h.to);
   if (!to || to.id === (item.lib ?? item.id)) return item;
   const { id, name, app, time, shuttle, ph } = to;
-  return { id, name, target: swap.target?.trim() || item.target, app, time, shuttle, ph, from: item.from, swappedFrom: item };
+  return { id, name, target: h.target?.trim() || item.target, app, time, shuttle, ph, from: item.from, swappedFrom: item, swapFrom: h.from };
 }
 
 /** Wo die Übung im Plan vorkommt: [{ phase, unit }] in Planreihenfolge. */

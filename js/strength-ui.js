@@ -5,7 +5,7 @@ import {
   PHASES, WARMUP, COOLDOWN, ROUTINE, ROUTINE_NOTES, ROUTINE_PHASE, INFO,
   weekOf, weekStart, fmtDate, phaseOfWeek, isoDay,
   exKey, weekKey, checkKey, dayKey, results, lastResult, historyOf, resultText, parseResult, exerciseList,
-  swapKey, applySwap, occurrencesOf, swapCandidates,
+  swapKey, swapAt, addSwap, applySwap, occurrencesOf, swapCandidates,
 } from './strength-plan.js';
 import { LIB, libOf, catLabel, searchLibrary } from './library.js';
 import { exerciseDetail } from './library-ui.js';
@@ -22,8 +22,13 @@ const fmtS = (ms) => `${(ms / 1000).toFixed(2).replace('.', ',')} s`;
 
 export function initStrength({ store, cloud, ex, onRun }) {
   const rows = new Map();
-  const now = new Date();
-  const curWeek = Math.min(22, Math.max(1, weekOf(now)));
+  // Heute und aktuelle Woche: bei jedem Zeichnen neu, die App bleibt oft tagelang offen
+  let now = new Date();
+  let curWeek = Math.min(22, Math.max(1, weekOf(now)));
+  const refreshToday = () => {
+    now = new Date();
+    curWeek = Math.min(22, Math.max(1, weekOf(now)));
+  };
   let view = 'workout';
   let phase = phaseOfWeek(curWeek);
   let week = phase.weeks.includes(curWeek) ? curWeek : phase.weeks[0];
@@ -101,16 +106,18 @@ export function initStrength({ store, cloud, ex, onRun }) {
     const multiUnit = new Set(hist.map((e) => e.unit)).size > 1;
     const lastTxt = last ? `Zuletzt W${last.week}: ${esc(resultText(last))}` : '';
     const lib = libOf(it);
+    // Gewicht vom letzten Mal vorschlagen (bei Zeiten nicht: die sollen frisch gemessen werden)
+    const sugg = !it.time && !it.shuttle && last?.value ? last.value : '';
     const orig = it.swappedFrom ?? it;
     return `
       <div class="kr-ex" data-ex="${id}">
         <div class="kr-head">
           <div class="kr-name">${esc(it.name)}${it.target ? ` <span class="muted">· ${esc(it.target)}</span>` : ''}${
-            it.swappedFrom ? `<span class="kr-swapped">statt ${esc(it.swappedFrom.name)}</span>` : ''}</div>
-          <button type="button" class="kr-swap" data-swap="${esc(orig.id)}" data-swap-unit="${esc(u.id)}" aria-label="${esc(it.name)} tauschen" title="Tauschen">⇄</button>
+            it.swappedFrom ? `<span class="kr-swapped">statt ${esc(it.swappedFrom.name)}${it.swapFrom > phase.weeks[0] ? ` · ab W${it.swapFrom}` : ''}</span>` : ''}</div>
+          ${week < curWeek ? '' : `<button type="button" class="kr-swap" data-swap="${esc(orig.id)}" data-swap-unit="${esc(u.id)}" aria-label="${esc(it.name)} tauschen" title="Tauschen">⇄</button>`}
         </div>
         <div class="kr-inputs">
-          <input type="text" data-field="value" value="${esc(r.value)}" placeholder="${esc(it.ph ?? (it.shuttle ? '5,41 s' : '40 kg'))}" aria-label="${esc(it.name)}: Wert">
+          <input type="text" data-field="value" value="${esc(r.value)}" placeholder="${esc(sugg || it.ph || (it.shuttle ? '5,41 s' : '40 kg'))}"${sugg ? ` data-sugg="${esc(sugg)}"` : ''} aria-label="${esc(it.name)}: Wert">
           <input type="text" data-field="reps" value="${esc(r.reps)}" placeholder="Wdh" inputmode="decimal" aria-label="${esc(it.name)}: Wiederholungen">
           <input type="text" data-field="note" value="${esc(r.note)}" placeholder="Notiz" aria-label="${esc(it.name)}: Notiz">
         </div>
@@ -137,7 +144,7 @@ export function initStrength({ store, cloud, ex, onRun }) {
   async function renderUnit() {
     const u0 = phase.units.find((x) => x.id === unit) ?? phase.units[0];
     unit = u0.id;
-    const u = swapped(phase, u0);
+    const u = swapped(phase, u0, week);
     const all = results(rows);
     $('#kr-unit-body').innerHTML = `
       ${u.gym ? checklist('Aufwärmen', WARMUP, u) : u.warmup ? checklist('Aufwärmen', u.warmup, u) : ''}
@@ -182,40 +189,45 @@ export function initStrength({ store, cloud, ex, onRun }) {
     }
   }
 
-  /** Einheit mit allen Tauschen dieser Phase. */
-  function swapped(p, u) {
-    const sw = (it) => applySwap(it, rows.get(swapKey(p.id, u.id, it.id)));
+  /** Einheit in einer Woche mit den dann gültigen Tauschen. */
+  function swapped(p, u, w) {
+    const sw = (it) => applySwap(it, rows.get(swapKey(p.id, u.id, it.id)), w);
     return { ...u, items: u.items.map(sw), block: u.block?.map(sw) };
   }
 
-  // ---------- Übung tauschen ----------
-  let swapCtx = null; // { item, unit, occ }
+  // ---------- Übung tauschen (nur ab der aktuellen Woche, vergangene Wochen bleiben) ----------
+  let swapCtx = null; // { item, unit, occ, shown, from }
+  const unitTitle = (o) => `${o.phase} ${PHASES.find((p) => p.id === o.phase).units.find((x) => x.id === o.unit).title}`;
 
   function openSwap(itemId, unitId) {
+    const from = Math.max(week, curWeek);
     const u = phase.units.find((x) => x.id === unitId);
     const item = [...u.items, ...(u.block ?? [])].find((it) => it.id === itemId);
-    const cur = rows.get(swapKey(phase.id, u.id, item.id));
-    const shown = applySwap(item, cur);
-    const occ = occurrencesOf(item.id).filter((o) => !(o.phase === phase.id && o.unit === u.id));
-    swapCtx = { item, unit: u, occ, shown };
+    const cur = swapAt(rows.get(swapKey(phase.id, u.id, item.id)), from);
+    const shown = applySwap(item, rows.get(swapKey(phase.id, u.id, item.id)), from);
+    // Andere Stellen im Plan: nur Phasen, die ab dieser Woche noch kommen
+    const occ = occurrencesOf(item.id).filter((o) => !(o.phase === phase.id && o.unit === u.id) && PHASES.find((p) => p.id === o.phase).weeks.at(-1) >= from);
+    swapCtx = { item, unit: u, occ, shown, from };
+    const fromTxt = from > phase.weeks[0] ? `ab W${from}` : `in allen Wochen von ${phase.id}`;
     $('#swap-title').textContent = `${shown.name} tauschen`;
     $('#swap-from').innerHTML = shown.swappedFrom
-      ? `Im Plan steht <b>${esc(item.name)}</b>. <button type="button" class="btn small ghost" id="swap-reset">Zurück zu ${esc(item.name)}</button>`
-      : `Gilt für ${phase.id} ${esc(u.title)} in allen Wochen. Einträge der neuen Übung laufen unter ihrem eigenen Namen.`;
-    $('#swap-target').value = cur?.target ?? '';
+      ? `Im Plan steht <b>${esc(item.name)}</b>. <button type="button" class="btn small ghost" id="swap-reset">Zurück zu ${esc(item.name)} ${esc(fromTxt)}</button>`
+      : `Gilt für ${phase.id} ${esc(u.title)} ${esc(fromTxt)}. Vergangene Wochen bleiben, wie sie waren.`;
+    $('#swap-target').value = shown.swappedFrom ? cur?.target ?? '' : '';
     $('#swap-target').placeholder = item.target || 'z. B. 3 × 8–10';
     $('#swap-all-wrap').hidden = !occ.length;
     $('#swap-all').checked = false;
-    $('#swap-all-label').textContent = `Auch in ${occ.map((o) => `${o.phase} ${PHASES.find((p) => p.id === o.phase).units.find((x) => x.id === o.unit).title}`).join(', ')}`;
+    $('#swap-all-label').textContent = `Auch in ${occ.map(unitTitle).join(', ')}`;
     $('#swap-q').value = '';
     renderSwapList();
     $('#swap-sheet').hidden = false;
   }
 
   function renderSwapList() {
-    const { item, unit: u, shown } = swapCtx;
+    const { item, unit: u, shown, from } = swapCtx;
     // Schon in der Einheit vorhandene Übungen nicht anbieten, sonst landen zwei Einträge unter derselben ID
-    const taken = swapped(phase, u).items.concat(swapped(phase, u).block ?? []).map((it) => it.id).filter((id) => id !== shown.id);
+    const s = swapped(phase, u, from);
+    const taken = [...s.items, ...(s.block ?? [])].map((it) => it.id).filter((id) => id !== shown.id);
     const hits = new Set(searchLibrary($('#swap-q').value).map((x) => x.id));
     const list = swapCandidates(shown.swappedFrom ? LIB.get(shown.id) : item, taken).filter((x) => hits.has(x.id));
     const own = libOf(item)?.cat;
@@ -232,16 +244,21 @@ export function initStrength({ store, cloud, ex, onRun }) {
   }
 
   function applySwapChoice(to) {
-    const { item, unit: u, occ } = swapCtx;
+    const { item, unit: u, occ, from } = swapCtx;
     const target = $('#swap-target').value.trim();
-    // In anderen Einheiten nur tauschen, wo die neue Übung nicht schon vorkommt
-    const has = (o) => {
-      const p = PHASES.find((x) => x.id === o.phase);
-      const s = swapped(p, p.units.find((x) => x.id === o.unit));
-      return [...s.items, ...(s.block ?? [])].some((it) => it.id === to && it.id !== item.id);
-    };
-    const places = [{ phase: phase.id, unit: u.id }, ...($('#swap-all').checked ? occ.filter((o) => !to || !has(o)) : [])];
-    for (const o of places) save(swapKey(o.phase, o.unit, item.id), { to, target: to ? target : '' });
+    const places = [{ phase: phase.id, unit: u.id, from }];
+    if ($('#swap-all').checked)
+      for (const o of occ) {
+        const p = PHASES.find((x) => x.id === o.phase);
+        const f = Math.max(from, p.weeks[0]);
+        // Nur dort tauschen, wo die neue Übung nicht schon in der Einheit steht
+        const s = swapped(p, p.units.find((x) => x.id === o.unit), f);
+        if (!to || ![...s.items, ...(s.block ?? [])].some((it) => it.id === to && it.id !== item.id)) places.push({ ...o, from: f });
+      }
+    for (const o of places) {
+      const id = swapKey(o.phase, o.unit, item.id);
+      save(id, addSwap(rows.get(id), { from: o.from, to, target }));
+    }
     closeSwap();
     renderUnit();
   }
@@ -304,7 +321,16 @@ export function initStrength({ store, cloud, ex, onRun }) {
   }
 
   // ---------- Steuerung ----------
-  async function render() {
+  /**
+   * @param {{today?: boolean}} opts today: zur aktuellen Woche springen (beim Öffnen des Tabs und beim Zurückkehren in die App)
+   */
+  async function render({ today = false } = {}) {
+    refreshToday();
+    if (today) {
+      phase = phaseOfWeek(curWeek);
+      week = phase.weeks.includes(curWeek) ? curWeek : phase.weeks[0];
+      if (!phase.units.some((u) => u.id === unit)) unit = phase.units[0].id;
+    }
     if (!loaded) await load();
     document.querySelectorAll('#kr-view button').forEach((b) => b.classList.toggle('on', b.dataset.view === view));
     $('#kr-workout').hidden = view !== 'workout';
@@ -344,6 +370,15 @@ export function initStrength({ store, cloud, ex, onRun }) {
       return;
     } else return;
     render();
+  });
+
+  // Leeres Gewichtsfeld antippen: letzten Wert übernehmen und markieren, Tippen überschreibt ihn
+  $('#screen-strength').addEventListener('focusin', (e) => {
+    const el = e.target;
+    if (el.dataset?.field !== 'value' || el.value || !el.dataset.sugg) return;
+    el.value = el.dataset.sugg;
+    el.select();
+    el.dispatchEvent(new Event('input', { bubbles: true }));
   });
 
   $('#screen-strength').addEventListener('input', (e) => {
@@ -519,6 +554,8 @@ export function initStrength({ store, cloud, ex, onRun }) {
       const r = { id: raw.id, created_at: raw.created_at ?? new Date().toISOString(), updated_at: raw.updated_at ?? new Date().toISOString() };
       for (const k of TEXT) if (raw[k] != null) r[k] = String(raw[k]).slice(0, 200);
       if (raw.done != null) r.done = !!raw.done;
+      if (Array.isArray(raw.hist))
+        r.hist = raw.hist.slice(0, 50).map((h) => ({ from: Number(h?.from) || 1, to: String(h?.to ?? '').slice(0, 60), target: String(h?.target ?? '').slice(0, 200) }));
       const cur = rows.get(r.id);
       if (cur && ts(cur.updated_at) >= ts(r.updated_at)) {
         skipped++;

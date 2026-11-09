@@ -39,18 +39,27 @@ const fmtDur = (ms) => {
 };
 
 // ---------- Navigation ----------
-function show(name) {
+function show(name, opts = {}) {
   for (const id of ['home', 'strength', 'library', 'history', 'settings', 'session', 'couch']) $(`#screen-${id}`).hidden = id !== name;
   document.body.classList.toggle('in-session', name === 'session' || name === 'couch');
   document.querySelectorAll('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.go === name));
   if (name === 'home') refreshHome();
-  if (name === 'strength') strength.render();
+  if (name === 'strength') strength.render(opts);
   if (name === 'library') library.render();
   if (name === 'history') renderHistory();
   if (name === 'settings') refreshSettings();
   window.scrollTo(0, 0);
 }
-document.querySelectorAll('#tabbar button').forEach((b) => b.addEventListener('click', () => show(b.dataset.go)));
+document.querySelectorAll('#tabbar button').forEach((b) =>
+  b.addEventListener('click', () => {
+    // Kraft-Tab öffnet immer in der aktuellen Woche
+    show(b.dataset.go, { today: true });
+  }),
+);
+// Zurück in die App (z. B. am nächsten Tag): Kraft-Tab springt in die aktuelle Woche
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && !$('#screen-strength').hidden) strength.render({ today: true });
+});
 
 async function refreshHome() {
   const trials = (await store.listTrials(EX_SHUFFLE)).filter((t) => t.valid && t.run_ms != null);

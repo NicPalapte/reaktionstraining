@@ -329,9 +329,9 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .kr-how .lib-cues, .kr-how .lib-why { font-size: 14px; }
 
 /* ---------- Übung tauschen ---------- */
-.kr-head { display: flex; align-items: flex-start; gap: 10px; }
-.kr-head .kr-name { flex: 1; }
-.kr-swap { flex: none; width: 38px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 18px; line-height: 1; margin-top: -4px; }
+.kr-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.kr-head .kr-name { flex: 1; margin-bottom: 0; }
+.kr-swap { flex: none; width: 38px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 18px; line-height: 1; }
 .kr-swap:active { background: var(--surface-2); color: var(--ink); }
 .kr-swapped { display: block; font-size: 13px; font-weight: 600; color: var(--ball); margin-top: 2px; }
 .sheet { position: fixed; z-index: 20; align-items: end; padding: calc(var(--safe-t) + 20px) 12px calc(var(--safe-b) + 12px); }
