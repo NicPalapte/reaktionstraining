@@ -304,3 +304,47 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .kr-inputs { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 2.4fr); }
 .kr-inputs input[data-field="reps"] { padding-left: 6px; padding-right: 6px; text-align: center; font-weight: 700; }
 #hs-list .row { grid-template-columns: auto auto 1fr; }
+
+/* ---------- Bibliothek ---------- */
+.lib-search { width: 100%; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 11px 14px; margin-bottom: 10px; user-select: text; -webkit-user-select: text; }
+.lib-search::placeholder { color: var(--muted); }
+.lib-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -18px 14px; padding: 0 18px; }
+.lib-chips::-webkit-scrollbar { display: none; }
+.lib-chips button { flex: none; font: inherit; font-size: 14px; font-weight: 700; min-height: 36px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--line); background: transparent; color: var(--muted); white-space: nowrap; }
+.lib-chips button.on { background: var(--ball); color: var(--on-ball); border-color: transparent; }
+.lib-ex { border-top: 1px solid var(--line); }
+.card h2 + .lib-ex { border-top: 0; }
+.lib-ex summary { list-style: none; cursor: pointer; display: flex; flex-direction: column; gap: 1px; padding: 10px 26px 10px 0; position: relative; }
+.lib-ex summary::-webkit-details-marker { display: none; }
+.lib-ex summary::after { content: "›"; position: absolute; right: 4px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 22px; transition: transform .15s; }
+.lib-ex[open] summary::after { transform: translateY(-50%) rotate(90deg); }
+.lib-name { font-weight: 700; }
+.lib-equip { font-size: 14px; }
+.lib-body { padding: 0 0 12px; font-size: 15px; line-height: 1.45; }
+.lib-body p, .kr-how p { margin: 4px 0 8px; }
+.lib-cues { margin: 0 0 8px; padding-left: 20px; }
+.lib-cues li { margin-bottom: 2px; }
+.lib-why { color: var(--ink); }
+.lib-used { font-size: 14px; }
+.kr-how .lib-cues, .kr-how .lib-why { font-size: 14px; }
+
+/* ---------- Übung tauschen ---------- */
+.kr-head { display: flex; align-items: flex-start; gap: 10px; }
+.kr-head .kr-name { flex: 1; }
+.kr-swap { flex: none; width: 38px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 18px; line-height: 1; margin-top: -4px; }
+.kr-swap:active { background: var(--surface-2); color: var(--ink); }
+.kr-swapped { display: block; font-size: 13px; font-weight: 600; color: var(--ball); margin-top: 2px; }
+.sheet { position: fixed; z-index: 20; align-items: end; padding: calc(var(--safe-t) + 20px) 12px calc(var(--safe-b) + 12px); }
+.sheet .card { max-height: 100%; overflow: auto; }
+.sheet .hint .btn { margin-top: 8px; }
+.swap-target { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 8px; }
+.swap-target span { color: var(--muted); font-size: 14px; }
+.swap-target input { width: 100%; font: inherit; color: var(--ink); background: var(--night); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; user-select: text; -webkit-user-select: text; }
+.swap-list { display: flex; flex-direction: column; }
+.swap-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left; font: inherit; color: var(--ink); background: transparent; border: 0; border-top: 1px solid var(--line); padding: 10px 2px; }
+.swap-opt:active { background: var(--surface-2); }
+.swap-opt .muted { font-size: 14px; }
+
+/* Einstellungen als Zahnrad in der Tableiste */
+.tabbar button.tab-icon { flex: 0 0 52px; display: grid; place-items: center; }
+.tabbar .tab-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

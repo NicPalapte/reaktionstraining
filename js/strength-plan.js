@@ -2,8 +2,11 @@
 // Einheiten stehen bewusst ohne Wochentag (A, B, C, Sprint, Kraft 1/2, Erhalt 1/2).
 // Physio und Dehnen an Nicht-Gym-Tagen ist eine eigene Kategorie (ROUTINE) mit Tagen.
 // Übungs-IDs verbinden dieselbe Übung über Phasen hinweg ("Zuletzt"-Hinweis, Verlauf).
+// Beschreibungen stehen in der Bibliothek (library.js); item.lib verweist dort auf eine andere ID.
 
-const x = (id, name, target, opts = {}) => ({ id, name, target, ...opts });
+import { LIB, libOf } from './library.js';
+
+const x =(id, name, target, opts = {}) => ({ id, name, target, ...opts });
 
 const SB = [
   x('straight-arm', 'Straight-Arm Pulldown', '3 × 12, Schultern runter'),
@@ -18,11 +21,11 @@ export const WARMUP = [
 export const COOLDOWN = [
   { id: 'seitlage', name: 'Seitlage-Dehnung', target: 'Arm gestreckt nach hinten oben, 2 × 40 s/Seite' },
   { id: 'brust', name: 'Brust Türrahmen', target: '1 × 40 s/Seite' },
-  { id: 'unterarm', name: 'Unterarm', target: '1 × 40 s/Seite' },
+  { id: 'unterarm', lib: 'unterarm-dehnen', name: 'Unterarm', target: '1 × 40 s/Seite' },
   { id: 'trizeps-dehnen', name: 'Trizeps', target: '1 × 40 s/Seite, nur schmerzfrei' },
 ];
 
-// Sprint-Einheit: Aufwärmen als Liste, Übungen mit Ausführung (how) und optional App-Drill (app):
+// Sprint-Einheit: Aufwärmen als Liste, Übungen optional mit App-Drill (app). Die Ausführung steht in der Bibliothek (library.js):
 // shuffle = 5-10-5 mit Kamera, spider = Spider-Drill mit Kamera, brake = Reaktionsdrill nur Abbremsen, decoy = Reaktionsdrill.
 export const SPRINT_WARMUP = [
   { id: 'sp-einlaufen', name: 'Einlaufen locker', target: '5 min' },
@@ -30,21 +33,12 @@ export const SPRINT_WARMUP = [
   { id: 'sp-mobil', name: 'Beinpendel und Ausfallschritt mit Rotation', target: 'je 10/Seite' },
   { id: 'sp-steiger', name: 'Steigerungsläufe', target: '2–3 × 30 m auf 80–90 %' },
 ];
-const HOW = {
-  sprint20: 'Aus der Schrittstellung maximal beschleunigen, die ersten Schritte flach und kraftvoll, dann aufrichten. Zurückgehen ist die Pause. Zeit mit Stoppuhr oder ohne, dann nur Gefühl notieren.',
-  shuttle: 'Start in der Mitte, 5 m zur einen Linie, 10 m zur anderen, 5 m zurück durch die Mitte. Linie mit der Hand berühren, tief umsetzen. In der App gibt der Pfeil die Startseite vor und die Zeit wird gemessen.',
-  spider: 'Fünf Hütchen im Halbkreis, ca. 3 m um die Mitte: links, vorne-links, vorne, vorne-rechts, rechts. Von der Mitte zu jedem Hütchen und zurück durch die Mitte (auf dem Platz: Grundlinienmitte, Ecken und Aufschlaglinie). In der App steht das Gerät ca. 6 m vor der Mitte, „vorne“ ist Richtung Gerät, der Pfeil zeigt das nächste Hütchen.',
-  brake: '2–3 Schritte kräftig antreten, auf „STOPP“ mit möglichst wenigen Schritten zum Stand: tief, breit, Gewicht über den Füßen, Knie nicht nach innen. In der App ist das der Reaktionsdrill nur mit Abbremsen, „Stopp“ kommt auch als Ansage (Kopfhörer). Bremst du im Bild (Gerät 6–7 m entfernt), werden Bremszeit und -weg gemessen; läufst du aus dem Bild, zählt es ohne Messung.',
-  decoy: 'Pfeil links, rechts oder vorne: los und zurück in die Mitte. Rot: stehen bleiben, auch wenn Grün auf Rot kippt. Optional mit Splitstep und Abbremsen (Einstellungen).',
-  start10: 'Explosiv 10 m aus wechselnden Startpositionen: Splitstep, seitlich, rückwärts mit Drehung.',
-  seil: 'Auf dem Ballen, kurzer Bodenkontakt, Knie leicht gebeugt. Seite wechseln, bevor die Spannung nachlässt.',
-};
 const sprint = {
-  s20: (target) => x('sprint-20m', '20-m-Sprint', target, { how: HOW.sprint20, time: true, ph: '3,20 s' }),
-  shuttle: (target) => x('shuttle', '5-10-5 Shuttle', target, { shuttle: true, time: true, app: 'shuffle', how: HOW.shuttle }),
-  spider: (target) => x('spider', 'Spider-Drill', target, { time: true, app: 'spider', how: HOW.spider, ph: '12,40 s' }),
-  brake: (target) => x('abbremsen', 'Abbremsen (Stopp-Drill)', target, { app: 'brake', how: HOW.brake, ph: 'Ø 0,55 s' }),
-  decoy: (target) => x('reaktion', 'Reaktionsdrill', target, { app: 'decoy', how: HOW.decoy, ph: '15/16 richtig' }),
+  s20: (target) => x('sprint-20m', '20-m-Sprint', target, { time: true, ph: '3,20 s' }),
+  shuttle: (target) => x('shuttle', '5-10-5 Shuttle', target, { shuttle: true, time: true, app: 'shuffle' }),
+  spider: (target) => x('spider', 'Spider-Drill', target, { time: true, app: 'spider', ph: '12,40 s' }),
+  brake: (target) => x('abbremsen', 'Abbremsen (Stopp-Drill)', target, { app: 'brake', ph: 'Ø 0,55 s' }),
+  decoy: (target) => x('reaktion', 'Reaktionsdrill', target, { app: 'decoy', ph: '15/16 richtig' }),
 };
 
 const A = 'Beine & Rumpf';
@@ -141,7 +135,7 @@ export const PHASES = [
         items: [
           x('einbein-huepfen-vor', 'Einbein. Hüpfen vorwärts', '3 × 4/Bein'),
           x('kniebeuge', 'Kniebeuge', '4–5 × 4–6'),
-          x('sprungkniebeuge-kontrast', '+ Sprungkniebeuge o. Last', '3 nach jedem Satz'),
+          x('sprungkniebeuge-kontrast', '+ Sprungkniebeuge o. Last', '3 nach jedem Satz', { lib: 'sprungkniebeuge' }),
           x('bss', 'Bulgarian Split Squat', '3 × 6–8/Bein'),
           x('beinbeuger', 'Beinbeuger', '3 × 6–10'),
           x('wadenheben', 'Wadenheben', '3 × 10–12 schwer'),
@@ -165,7 +159,7 @@ export const PHASES = [
         items: [
           x('einbein-huepfen-seit', 'Einbein. Hüpfen seitlich', '3 × 4/Bein'),
           x('kreuzheben', 'Kreuzheben', '4–5 × 4–6'),
-          x('standweitsprung-kontrast', '+ Standweitsprung', '3 nach jedem Satz'),
+          x('standweitsprung-kontrast', '+ Standweitsprung', '3 nach jedem Satz', { lib: 'standweitsprung' }),
           x('hipthrust', 'Hip Thrust', '3 × 6–10'),
           x('einbein-kh', 'Einbein. Kreuzheben', '3 × 8/Bein'),
           x('khbank', 'KH-Bank/Floor Press', '3 × 8–12'),
@@ -230,7 +224,7 @@ export const PHASES = [
         id: 'C', title: 'C', name: C, gym: true,
         items: [
           x('seitsprung-rw', 'Seitsprung Richtungswechsel', '3 × 4/Seite'),
-          x('boxsprung-max', 'Boxsprung max', '3 × 4'),
+          x('boxsprung-max', 'Boxsprung max', '3 × 4', { lib: 'boxsprung' }),
           x('kreuzheben', 'Kreuzheben', '3 × 3–5'),
           x('hipthrust', 'Hip Thrust', '2 × 8'),
           x('khbank', 'KH-Bank/Floor Press', '3 × 8'),
@@ -243,9 +237,9 @@ export const PHASES = [
         warmup: SPRINT_WARMUP,
         intro: 'Kurz und schnell: Qualität vor Umfang.',
         items: [
-          x('start-10m', '10-m-Start', '6 ×, Pause 60 s', { how: HOW.start10, time: true, ph: '1,90 s' }),
+          x('start-10m', '10-m-Start', '6 ×, Pause 60 s', { time: true, ph: '1,90 s' }),
           sprint.decoy('6 Sätze'),
-          x('seil-einbein', 'Seilspringen einbeinig', 'kurze Serien je Bein', { how: HOW.seil }),
+          x('seil-einbein', 'Seilspringen einbeinig', 'kurze Serien je Bein'),
           sprint.brake('5 ×'),
           sprint.shuttle('optional 1–2 × zur Kontrolle'),
         ],
@@ -320,7 +314,7 @@ export const PHASES = [
       {
         id: 'E2', title: 'Erhalt 2', name: '', gym: true,
         items: [
-          x('skater-reaktiv', 'Skater reaktiv', '2 × 4/Seite'),
+          x('skater-reaktiv', 'Skater reaktiv', '2 × 4/Seite', { lib: 'skater' }),
           x('kreuzheben', 'Kreuzheben', '2–3 × 3'),
           x('medball-ueberkopf', 'Medball Überkopf einarmig', '3 × 5'),
           x('klimmzug', 'Klimmzug', '2 × 6'),
@@ -559,3 +553,39 @@ export function exerciseList() {
 
 /** Alle Ergebnisse einer Übung, älteste zuerst. */
 export const historyOf = (all, ex) => all.filter((e) => e.ex === ex).sort((a, b) => a.week - b.week || a.unit.localeCompare(b.unit));
+
+// ---------- Übungen tauschen (Plan-Editor light) ----------
+// Ein Tausch gilt für eine Übung in einer Einheit einer Phase, für alle Wochen. Gespeichert als Zeile
+// swap|Phase|Einheit|Übung mit to = Bibliotheks-ID (leer = zurückgesetzt) und optional eigener Vorgabe (target).
+// Einträge der getauschten Übung laufen unter ihrer eigenen ID, so passen "Zuletzt" und Verlauf zur neuen Übung.
+
+export const swapKey = (phase, unit, item) => `swap|${phase}|${unit}|${item}`;
+
+/**
+ * Plan-Eintrag nach einem Tausch.
+ * @param {object} item Eintrag aus dem Plan
+ * @param {object|undefined} swap gespeicherte Zeile
+ * @returns {object} der Eintrag selbst oder die getauschte Übung mit swappedFrom
+ */
+export function applySwap(item, swap) {
+  const to = swap?.to && LIB.get(swap.to);
+  if (!to || to.id === (item.lib ?? item.id)) return item;
+  const { id, name, app, time, shuttle, ph } = to;
+  return { id, name, target: swap.target?.trim() || item.target, app, time, shuttle, ph, from: item.from, swappedFrom: item };
+}
+
+/** Wo die Übung im Plan vorkommt: [{ phase, unit }] in Planreihenfolge. */
+export function occurrencesOf(itemId) {
+  const out = [];
+  for (const p of PHASES)
+    for (const u of p.units) if ([...u.items, ...(u.block ?? [])].some((it) => it.id === itemId)) out.push({ phase: p.id, unit: u.id });
+  return out;
+}
+
+/** Tauschkandidaten: gleiche Kategorie zuerst, die Übung selbst und schon in der Einheit vorhandene Übungen nicht. */
+export function swapCandidates(item, taken = []) {
+  const self = libOf(item);
+  const skip = new Set([self?.id, ...taken]);
+  const list = [...LIB.values()].filter((x) => !skip.has(x.id) && x.cat !== 'warmup' && x.cat !== 'mobil');
+  return self ? [...list.filter((x) => x.cat === self.cat), ...list.filter((x) => x.cat !== self.cat)] : list;
+}

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Off Season Navigation</title>
+<style>
+  :root {
+    --night: #0d1b24; --surface: #14303d; --surface-2: #1b3e4e; --ink: #eef2ec; --muted: #94acb8;
+    --ball: #d6f24a; --on-ball: #0d1b24; --clay: #f0825a; --line: rgba(238,242,236,.16);
+    --page: #e9ece6; --page-ink: #1d2a30;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --page: #071118; --page-ink: #dfe6e2; } }
+  :root[data-theme="dark"] { --page: #071118; --page-ink: #dfe6e2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--page-ink); font: 15px/1.4 ui-rounded, "SF Pro Rounded", system-ui, -apple-system, sans-serif; padding: 28px 16px 60px; }
+  header.top { max-width: 1200px; margin: 0 auto 24px; }
+  header.top h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: -.02em; }
+  header.top p { margin: 0; max-width: 70ch; opacity: .8; }
+  .row { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; max-width: 1500px; margin: 0 auto; }
+  figure { margin: 0; display: flex; flex-direction: column; gap: 10px; width: 300px; max-width: 100%; }
+  figcaption { font-size: 14px; }
+  figcaption b { display: block; font-size: 16px; }
+  .phone { position: relative; height: 620px; border-radius: 38px; background: var(--night); color: var(--ink); border: 8px solid #000; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+  .scroll { position: absolute; inset: 0 0 74px 0; overflow: hidden; padding: 40px 14px 0; }
+  .ph-h1 { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 0 0 2px; display: flex; justify-content: space-between; align-items: center; }
+  .gear { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; font-size: 15px; color: var(--muted); }
+  .lede { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 12px; margin-bottom: 10px; }
+  .card h3 { margin: 0 0 6px; font-size: 15px; }
+  .muted { color: var(--muted); }
+  .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); color: var(--muted); margin-right: 4px; }
+  .tag.ball { background: var(--ball); color: var(--on-ball); }
+  .tag.p { background: #2b5a3e; color: #c9f0d6; } .tag.r { background: #5a4a1d; color: #f6e3a6; } .tag.m { background: #3d3460; color: #d9d0ff; }
+  .btn { display: block; text-align: center; font-weight: 800; padding: 10px; border-radius: 12px; background: var(--ball); color: var(--on-ball); margin-top: 8px; font-size: 14px; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .li { display: flex; justify-content: space-between; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+  .li:first-of-type { border-top: 0; }
+  .seg { display: flex; gap: 4px; background: var(--surface); border-radius: 12px; padding: 3px; margin-bottom: 10px; font-size: 12px; font-weight: 700; }
+  .seg span { flex: 1; text-align: center; padding: 6px 2px; border-radius: 9px; color: var(--muted); }
+  .seg span.on { background: var(--surface-2); color: var(--ink); }
+  .search { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  .chips { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+  .chips span { font-size: 11px; font-weight: 700; padding: 4px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+  .chips span.on { background: var(--ball); color: var(--on-ball); border-color: transparent; }
+  .ready { display: flex; gap: 6px; } .ready div { flex: 1; text-align: center; background: var(--night); border-radius: 10px; padding: 6px 0; font-size: 11px; color: var(--muted); }
+  .ready b { display: block; font-size: 16px; color: var(--ink); }
+  .bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; margin-top: 6px; } .bar i { display: block; height: 100%; background: var(--ball); }
+  .tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: 74px; display: flex; padding: 6px 6px 18px; gap: 2px; background: rgba(13,27,36,.95); border-top: 1px solid var(--line); }
+  .tabbar div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 10.5px; font-weight: 700; color: var(--muted); border-radius: 12px; }
+  .tabbar div.on { color: var(--on-ball); background: var(--ball); }
+  .tabbar svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .notes { max-width: 1100px; margin: 34px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .notes div { background: rgba(127,127,127,.08); border-radius: 14px; padding: 14px 16px; }
+  .notes h2 { font-size: 15px; margin: 0 0 6px; }
+  .notes ul { margin: 0; padding-left: 18px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Off Season – Navigation (Mockup)</h1>
+  <p>Fünf Tabs, Einstellungen hinter dem Zahnrad. Die Kamera-Drills hängen nicht mehr an einem eigenen Tab, sondern starten aus „Heute“, aus dem Plan oder aus der Bibliothek.</p>
+</header>
+
+<div class="row">
+
+  <!-- Heute -->
+  <figure>
+    <div class="phone"><div class="scroll">
+      <div class="ph-h1">Heute <span class="gear">⚙</span></div>
+      <p class="lede">Mo 23.11. · Wintertraining 26/27 · P3 W9</p>
+      <div class="card">
+        <h3>Wie fühlst du dich?</h3>
+        <div class="ready"><div><b>4</b>Schlaf</div><div><b>3</b>Beine</div><div><b>4</b>Energie</div><div><b>1</b>Ellb</div></div>
+      </div>
+      <div class="card">
+        <span class="tag p">Physis</span><span class="tag">Gym</span>
+        <h3 style="margin-top:6px">A · Beine &amp; Rumpf</h3>
+        <div class="li"><span>Kniebeuge</span><span class="muted">4–5 × 4–6</span></div>
+        <div class="li"><span>Bulgarian Split Squat</span><span class="muted">3 × 6–8</span></div>
+        <div class="li"><span class="muted">+ 6 weitere</span><span></span></div>
+        <span class="btn">Einheit starten</span>
+      </div>
+      <div class="card">
+        <span class="tag r">Reaktion</span>
+        <h3 style="margin-top:6px">Schnellstart Kamera</h3>
+        <div class="li"><span>5-10-5</span><span class="muted">Best 5,41 s</span></div>
+        <div class="li"><span>Spider</span><span class="muted">Best 12,40 s</span></div>
+        <div class="li"><span>Reaktionsdrill</span><span class="muted">15/16</span></div>
+      </div>
+    </div>
+    <nav class="tabbar">
+      <div class="on"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Heute</div>
+      <div><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>Pläne</div>
+      <div><svg viewBox="0 0 24 24"><path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1 -3.6 15 -3.8-1z"/></svg>Bibliothek</div>
+      <div><svg viewBox="0 0 24 24"><path d="M12 6c-2-1.5-5-2-8-1.5v14c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-14c-3-.5-6 0-8 1.5zM12 6v14"/></svg>Wissen</div>
+      <div><svg viewBox="0 0 24 24"><path d="M4 19h16M6 16l4-5 3 3 5-7"/></svg>Verlauf</div>
+    </nav></div>
+    <figcaption><b>Heute</b>Was steht an? Bereitschaftscheck, nächste Einheit aus dem aktiven Plan, Schnellstart der Kamera-Drills.</figcaption>
+  </figure>
+
+  <!-- Pläne -->
+  <figure>
+    <div class="phone"><div class="scroll">
+      <div class="ph-h1">Pläne <span class="gear">⚙</span></div>
+      <p class="lede">Aktiv: Wintertraining 26/27</p>
+      <div class="seg"><span class="on">Workouts</span><span>Physio &amp; Dehnen</span></div>
+      <div class="seg"><span>P1</span><span>P2</span><span class="on">P3</span><span>P4</span><span>P5</span><span>P6</span></div>
+      <div class="seg"><span class="on">A</span><span>B</span><span>C</span><span>Sprint</span></div>
+      <div class="card">
+        <h3>A · Beine &amp; Rumpf</h3>
+        <div class="li"><span>Kniebeuge<br><span class="muted">4–5 × 4–6</span></span><span class="tag">⇄ Tauschen</span></div>
+        <div class="li"><span>Einbein. Kreuzheben <span class="tag ball">getauscht</span><br><span class="muted">statt Bulgarian Split Squat</span></span><span class="tag">↺</span></div>
+        <div class="li"><span>Beinbeuger<br><span class="muted">3 × 6–10</span></span><span class="tag">⇄ Tauschen</span></div>
+        <div class="li"><span>Pallof Press<br><span class="muted">3 × 10/Seite</span></span><span class="tag">⇄ Tauschen</span></div>
+      </div>
+      <div class="card"><h3>Weitere Pläne</h3><div class="li"><span>Vorlagen</span><span class="muted">später</span></div><div class="li"><span>+ Eigener Plan</span><span class="muted">später</span></div></div>
+    </div>
+    <nav class="tabbar">
+      <div><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Heute</div>
+      <div class="on"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>Pläne</div>
+      <div><svg viewBox="0 0 24 24"><path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1 -3.6 15 -3.8-1z"/></svg>Bibliothek</div>
+      <div><svg viewBox="0 0 24 24"><path d="M12 6c-2-1.5-5-2-8-1.5v14c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-14c-3-.5-6 0-8 1.5zM12 6v14"/></svg>Wissen</div>
+      <div><svg viewBox="0 0 24 24"><path d="M4 19h16M6 16l4-5 3 3 5-7"/></svg>Verlauf</div>
+    </nav></div>
+    <figcaption><b>Pläne</b>Heutiger Kraft-Tab wird zu „Pläne“. Dein Plan bleibt wie er ist, jede Übung lässt sich gegen eine aus der Bibliothek tauschen.</figcaption>
+  </figure>
+
+  <!-- Bibliothek -->
+  <figure>
+    <div class="phone"><div class="scroll">
+      <div class="ph-h1">Bibliothek <span class="gear">⚙</span></div>
+      <p class="lede">55 Übungen</p>
+      <div class="search">🔍 Übung suchen</div>
+      <div class="chips"><span class="on">Alle</span><span>Sprung</span><span>Beine</span><span>Oberkörper</span><span>Rumpf</span><span>Schnelligkeit</span><span>Schulter</span><span>Mobilität</span></div>
+      <div class="card">
+        <h3>Rumpf &amp; Rotation</h3>
+        <div class="li"><span>Pallof Press<br><span class="muted">Kabel/Band · Anti-Rotation</span></span><span class="muted">›</span></div>
+        <div class="li"><span>Wood Chopper <span class="tag ball">neu</span><br><span class="muted">Kabel · Rotation</span></span><span class="muted">›</span></div>
+        <div class="li"><span>Medball Rotation<br><span class="muted">Medball · Power</span></span><span class="muted">›</span></div>
+      </div>
+      <div class="card">
+        <h3>Schulter &amp; Schulterblatt</h3>
+        <div class="li"><span>Scapula Pull-up <span class="tag ball">neu</span><br><span class="muted">Stange · Schulterblatt</span></span><span class="muted">›</span></div>
+        <div class="li"><span>Face Pulls<br><span class="muted">Kabel</span></span><span class="muted">›</span></div>
+      </div>
+    </div>
+    <nav class="tabbar">
+      <div><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Heute</div>
+      <div><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>Pläne</div>
+      <div class="on"><svg viewBox="0 0 24 24"><path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1 -3.6 15 -3.8-1z"/></svg>Bibliothek</div>
+      <div><svg viewBox="0 0 24 24"><path d="M12 6c-2-1.5-5-2-8-1.5v14c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-14c-3-.5-6 0-8 1.5zM12 6v14"/></svg>Wissen</div>
+      <div><svg viewBox="0 0 24 24"><path d="M4 19h16M6 16l4-5 3 3 5-7"/></svg>Verlauf</div>
+    </nav></div>
+    <figcaption><b>Bibliothek</b>Alle Übungen mit Beschreibung, Suche und Filter nach Kategorie. Kamera-Drills starten direkt aus der Übung.</figcaption>
+  </figure>
+
+  <!-- Wissen -->
+  <figure>
+    <div class="phone"><div class="scroll">
+      <div class="ph-h1">Wissen <span class="gear">⚙</span></div>
+      <p class="lede">Kurz, mit Evidenzstufe</p>
+      <div class="seg"><span class="on">Alle</span><span>Physis</span><span>Reaktion</span><span>Mental</span></div>
+      <div class="card"><span class="tag">Grundlagen</span><h3 style="margin-top:6px">So ist eine Off-Season aufgebaut</h3><p class="muted" style="margin:0;font-size:13px">Vom Allgemeinen zum Spezifischen: Grundlage, Kraft, Power, Taper.</p></div>
+      <div class="card"><span class="tag p">Physis</span><span class="tag">gut belegt</span><h3 style="margin-top:6px">Nordics &amp; Copenhagen</h3><p class="muted" style="margin:0;font-size:13px">Halb so viele Verletzungen der Oberschenkelrückseite.</p></div>
+      <div class="card"><span class="tag r">Reaktion</span><span class="tag">mittel</span><h3 style="margin-top:6px">Was Pfeil-Drills trainieren – und was nicht</h3></div>
+      <div class="card"><span class="tag m">Mental</span><span class="tag">gut belegt</span><h3 style="margin-top:6px">Routine vor dem Aufschlag</h3></div>
+    </div>
+    <nav class="tabbar">
+      <div><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Heute</div>
+      <div><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>Pläne</div>
+      <div><svg viewBox="0 0 24 24"><path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1 -3.6 15 -3.8-1z"/></svg>Bibliothek</div>
+      <div class="on"><svg viewBox="0 0 24 24"><path d="M12 6c-2-1.5-5-2-8-1.5v14c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-14c-3-.5-6 0-8 1.5zM12 6v14"/></svg>Wissen</div>
+      <div><svg viewBox="0 0 24 24"><path d="M4 19h16M6 16l4-5 3 3 5-7"/></svg>Verlauf</div>
+    </nav></div>
+    <figcaption><b>Wissen</b>Artikel aus der Recherche, nach Säule gefiltert, mit Evidenzstufe. Übungen verlinken auf passende Artikel.</figcaption>
+  </figure>
+
+  <!-- Verlauf -->
+  <figure>
+    <div class="phone"><div class="scroll">
+      <div class="ph-h1">Verlauf <span class="gear">⚙</span></div>
+      <p class="lede">wie bisher, plus Belastung</p>
+      <div class="seg"><span class="on">Kraft</span><span>5-10-5</span><span>Spider</span><span>Drills</span></div>
+      <div class="card"><h3>Kniebeuge</h3>
+        <svg viewBox="0 0 260 90" style="width:100%;height:90px"><polyline points="5,75 45,68 85,60 125,52 165,44 205,40 250,30" fill="none" stroke="#d6f24a" stroke-width="3" stroke-linecap="round"/><g fill="#d6f24a"><circle cx="5" cy="75" r="3"/><circle cx="85" cy="60" r="3"/><circle cx="165" cy="44" r="3"/><circle cx="250" cy="30" r="3"/></g></svg>
+        <div class="li"><span>Bestwert</span><b>80 kg</b></div>
+      </div>
+      <div class="card"><h3>Belastung diese Woche</h3><div class="li"><span>Session-RPE</span><span>1.240</span></div><div class="bar"><i style="width:68%"></i></div><p class="muted" style="margin:6px 0 0;font-size:12px">im Rahmen der letzten 4 Wochen</p></div>
+    </div>
+    <nav class="tabbar">
+      <div><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Heute</div>
+      <div><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>Pläne</div>
+      <div><svg viewBox="0 0 24 24"><path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1 -3.6 15 -3.8-1z"/></svg>Bibliothek</div>
+      <div><svg viewBox="0 0 24 24"><path d="M12 6c-2-1.5-5-2-8-1.5v14c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-14c-3-.5-6 0-8 1.5zM12 6v14"/></svg>Wissen</div>
+      <div class="on"><svg viewBox="0 0 24 24"><path d="M4 19h16M6 16l4-5 3 3 5-7"/></svg>Verlauf</div>
+    </nav></div>
+    <figcaption><b>Verlauf</b>Bestehende Verläufe bleiben. Später kommt die Wochenbelastung (Session-RPE) dazu.</figcaption>
+  </figure>
+</div>
+
+<section class="notes">
+  <div><h2>Was wohin wandert</h2><ul><li>„Training“ → Schnellstart in <b>Heute</b></li><li>„Kraft“ → <b>Pläne</b></li><li>„Einstellungen“ → Zahnrad oben rechts</li></ul></div>
+  <div><h2>Schon jetzt umgesetzt</h2><ul><li>Tab <b>Bibliothek</b> mit Beschreibungen</li><li><b>Tauschen</b> im Kraft-Tab</li><li>Name und Tabs bleiben vorerst wie bisher</li></ul></div>
+  <div><h2>Später</h2><ul><li>Heute, Wissen, Belastung</li><li>Vorlagen und eigene Pläne</li><li>Umbenennung in Off Season</li></ul></div>
+</section>
+</body>
+</html>

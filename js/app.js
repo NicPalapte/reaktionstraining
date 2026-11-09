@@ -6,6 +6,7 @@ import { DecoyEngine } from './decoy-engine.js';
 import { SpiderEngine } from './spider-engine.js';
 import { initCouch } from './couch-ui.js';
 import { initStrength } from './strength-ui.js';
+import { initLibrary } from './library-ui.js';
 import { Calibrator, makeSample } from './calibration.js';
 import { PoseTracker } from './pose.js';
 import { SimTracker } from './sim-tracker.js';
@@ -39,11 +40,12 @@ const fmtDur = (ms) => {
 
 // ---------- Navigation ----------
 function show(name) {
-  for (const id of ['home', 'strength', 'history', 'settings', 'session', 'couch']) $(`#screen-${id}`).hidden = id !== name;
+  for (const id of ['home', 'strength', 'library', 'history', 'settings', 'session', 'couch']) $(`#screen-${id}`).hidden = id !== name;
   document.body.classList.toggle('in-session', name === 'session' || name === 'couch');
   document.querySelectorAll('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.go === name));
   if (name === 'home') refreshHome();
   if (name === 'strength') strength.render();
+  if (name === 'library') library.render();
   if (name === 'history') renderHistory();
   if (name === 'settings') refreshSettings();
   window.scrollTo(0, 0);
@@ -911,6 +913,10 @@ const strength = initStrength({
   ex: { shuffle: EX_SHUFFLE, spider: EX_SPIDER, decoy: EX_DECOY },
   // Start aus dem Sprint-Block: danach zurück zum Krafttraining
   onRun: (app) => startSession(app === 'brake' ? 'decoy' : app, { preset: app === 'brake' ? 'brake' : null, returnTo: 'strength' }),
+});
+// Kamera-Drills aus der Bibliothek: danach zurück zur Bibliothek
+const library = initLibrary({
+  onRun: (app) => startSession(app === 'brake' ? 'decoy' : app, { preset: app === 'brake' ? 'brake' : null, returnTo: 'library' }),
 });
 const couch = initCouch({ store, cloud, audio, exCouch: EX_COUCH, settings: () => settings, onExit: () => show('home') });
 $('#start-couch').addEventListener('click', () => {

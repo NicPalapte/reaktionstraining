@@ -128,6 +128,29 @@
   </details>
 </main>
 
+<!-- ======================= Bibliothek ======================= -->
+<main id="screen-library" class="screen" data-tab="library" hidden>
+  <header class="page-head">
+    <h1>Bibliothek</h1>
+    <p class="lede" id="lib-count">Übungen mit Ausführung</p>
+  </header>
+  <input type="search" class="lib-search" id="lib-q" placeholder="Übung suchen" aria-label="Übung suchen" autocomplete="off">
+  <div class="lib-chips" id="lib-cats" aria-label="Kategorie"></div>
+  <div id="lib-list"></div>
+</main>
+
+<!-- Übung tauschen (Krafttraining) -->
+<div class="overlay-card sheet" id="swap-sheet" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="swap-title">
+    <div class="card-head"><h2 id="swap-title">Übung tauschen</h2><button type="button" class="btn small ghost" id="swap-close">Abbrechen</button></div>
+    <p class="hint" id="swap-from"></p>
+    <label class="field col swap-target"><span>Vorgabe</span><input type="text" id="swap-target" placeholder="z. B. 3 × 8–10"></label>
+    <label class="kr-check" id="swap-all-wrap"><input type="checkbox" id="swap-all"><span id="swap-all-label"></span></label>
+    <input type="search" class="lib-search" id="swap-q" placeholder="Übung suchen" aria-label="Übung suchen" autocomplete="off">
+    <div class="swap-list" id="swap-list"></div>
+  </div>
+</div>
+
 <!-- ======================= Verlauf ======================= -->
 <main id="screen-history" class="screen" data-tab="history" hidden>
   <header class="page-head"><h1>Verlauf</h1></header>
@@ -390,8 +413,9 @@
 <nav class="tabbar" id="tabbar" aria-label="Hauptnavigation">
   <button type="button" data-go="home" class="on">Training</button>
   <button type="button" data-go="strength">Kraft</button>
+  <button type="button" data-go="library">Übungen</button>
   <button type="button" data-go="history">Verlauf</button>
-  <button type="button" data-go="settings">Einstellungen</button>
+  <button type="button" data-go="settings" class="tab-icon" aria-label="Einstellungen" title="Einstellungen"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
 </nav>
 
 <script type="module" src="js/app.js"></script>

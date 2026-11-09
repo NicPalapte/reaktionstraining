@@ -75,6 +75,11 @@ js/calibration.js      freihändige Kalibrierung der Mitte
 js/pose.js             Kamera + MediaPipe Pose Landmarker
 js/storage.js          IndexedDB, CSV-Export
 js/chart.js            Verlaufsdiagramm
+js/strength-plan.js    Wintertraining 26/27 als Daten, Tauschen von Übungen
+js/strength-ui.js      Krafttraining-Oberfläche mit Tausch-Dialog
+js/library.js          Übungsbibliothek (Ausführung, Merkpunkte, Nutzen für Tennis)
+js/library-ui.js       Bibliothek-Tab mit Suche und Kategorien
+docs/                  Trainingswissen, Umbauplan Off Season, Navigations-Mockup
 js/sim-*.js            Simulationsmodus (?sim=1) und Test-Läufe
 tests/                 Logiktests
 ```

@@ -5,7 +5,10 @@ import {
   PHASES, WARMUP, COOLDOWN, ROUTINE, ROUTINE_NOTES, ROUTINE_PHASE, INFO,
   weekOf, weekStart, fmtDate, phaseOfWeek, isoDay,
   exKey, weekKey, checkKey, dayKey, results, lastResult, historyOf, resultText, parseResult, exerciseList,
+  swapKey, applySwap, occurrencesOf, swapCandidates,
 } from './strength-plan.js';
+import { LIB, libOf, catLabel, searchLibrary } from './library.js';
+import { exerciseDetail } from './library-ui.js';
 import { drawProgress } from './chart.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -97,15 +100,21 @@ export function initStrength({ store, cloud, ex, onRun }) {
     const hist = historyOf(all, it.id);
     const multiUnit = new Set(hist.map((e) => e.unit)).size > 1;
     const lastTxt = last ? `Zuletzt W${last.week}: ${esc(resultText(last))}` : '';
+    const lib = libOf(it);
+    const orig = it.swappedFrom ?? it;
     return `
       <div class="kr-ex" data-ex="${id}">
-        <div class="kr-name">${esc(it.name)}${it.target ? ` <span class="muted">· ${esc(it.target)}</span>` : ''}</div>
+        <div class="kr-head">
+          <div class="kr-name">${esc(it.name)}${it.target ? ` <span class="muted">· ${esc(it.target)}</span>` : ''}${
+            it.swappedFrom ? `<span class="kr-swapped">statt ${esc(it.swappedFrom.name)}</span>` : ''}</div>
+          <button type="button" class="kr-swap" data-swap="${esc(orig.id)}" data-swap-unit="${esc(u.id)}" aria-label="${esc(it.name)} tauschen" title="Tauschen">⇄</button>
+        </div>
         <div class="kr-inputs">
           <input type="text" data-field="value" value="${esc(r.value)}" placeholder="${esc(it.ph ?? (it.shuttle ? '5,41 s' : '40 kg'))}" aria-label="${esc(it.name)}: Wert">
           <input type="text" data-field="reps" value="${esc(r.reps)}" placeholder="Wdh" inputmode="decimal" aria-label="${esc(it.name)}: Wiederholungen">
           <input type="text" data-field="note" value="${esc(r.note)}" placeholder="Notiz" aria-label="${esc(it.name)}: Notiz">
         </div>
-        ${it.how ? `<details class="kr-how"><summary>So geht’s</summary><p>${esc(it.how)}</p></details>` : ''}
+        ${lib ? `<details class="kr-how"><summary>So geht’s</summary>${exerciseDetail(lib)}</details>` : ''}
         ${it.app ? `<div class="kr-app"><button type="button" class="btn small" data-run="${it.app}">${APP_LABEL[it.app]}</button><span data-app="${it.app}"></span></div>` : ''}
         ${lastTxt ? `<div class="kr-last">${lastTxt}</div>` : ''}
         ${hist.length
@@ -126,8 +135,9 @@ export function initStrength({ store, cloud, ex, onRun }) {
   }
 
   async function renderUnit() {
-    const u = phase.units.find((x) => x.id === unit) ?? phase.units[0];
-    unit = u.id;
+    const u0 = phase.units.find((x) => x.id === unit) ?? phase.units[0];
+    unit = u0.id;
+    const u = swapped(phase, u0);
     const all = results(rows);
     $('#kr-unit-body').innerHTML = `
       ${u.gym ? checklist('Aufwärmen', WARMUP, u) : u.warmup ? checklist('Aufwärmen', u.warmup, u) : ''}
@@ -171,6 +181,85 @@ export function initStrength({ store, cloud, ex, onRun }) {
       box.innerHTML = html;
     }
   }
+
+  /** Einheit mit allen Tauschen dieser Phase. */
+  function swapped(p, u) {
+    const sw = (it) => applySwap(it, rows.get(swapKey(p.id, u.id, it.id)));
+    return { ...u, items: u.items.map(sw), block: u.block?.map(sw) };
+  }
+
+  // ---------- Übung tauschen ----------
+  let swapCtx = null; // { item, unit, occ }
+
+  function openSwap(itemId, unitId) {
+    const u = phase.units.find((x) => x.id === unitId);
+    const item = [...u.items, ...(u.block ?? [])].find((it) => it.id === itemId);
+    const cur = rows.get(swapKey(phase.id, u.id, item.id));
+    const shown = applySwap(item, cur);
+    const occ = occurrencesOf(item.id).filter((o) => !(o.phase === phase.id && o.unit === u.id));
+    swapCtx = { item, unit: u, occ, shown };
+    $('#swap-title').textContent = `${shown.name} tauschen`;
+    $('#swap-from').innerHTML = shown.swappedFrom
+      ? `Im Plan steht <b>${esc(item.name)}</b>. <button type="button" class="btn small ghost" id="swap-reset">Zurück zu ${esc(item.name)}</button>`
+      : `Gilt für ${phase.id} ${esc(u.title)} in allen Wochen. Einträge der neuen Übung laufen unter ihrem eigenen Namen.`;
+    $('#swap-target').value = cur?.target ?? '';
+    $('#swap-target').placeholder = item.target || 'z. B. 3 × 8–10';
+    $('#swap-all-wrap').hidden = !occ.length;
+    $('#swap-all').checked = false;
+    $('#swap-all-label').textContent = `Auch in ${occ.map((o) => `${o.phase} ${PHASES.find((p) => p.id === o.phase).units.find((x) => x.id === o.unit).title}`).join(', ')}`;
+    $('#swap-q').value = '';
+    renderSwapList();
+    $('#swap-sheet').hidden = false;
+  }
+
+  function renderSwapList() {
+    const { item, unit: u, shown } = swapCtx;
+    // Schon in der Einheit vorhandene Übungen nicht anbieten, sonst landen zwei Einträge unter derselben ID
+    const taken = swapped(phase, u).items.concat(swapped(phase, u).block ?? []).map((it) => it.id).filter((id) => id !== shown.id);
+    const hits = new Set(searchLibrary($('#swap-q').value).map((x) => x.id));
+    const list = swapCandidates(shown.swappedFrom ? LIB.get(shown.id) : item, taken).filter((x) => hits.has(x.id));
+    const own = libOf(item)?.cat;
+    let last = null;
+    $('#swap-list').innerHTML = list.length
+      ? list
+          .map((x) => {
+            const head = x.cat !== last ? `<p class="kr-sub">${esc(catLabel(x.cat))}${x.cat === own ? ' · gleiche Kategorie' : ''}</p>` : '';
+            last = x.cat;
+            return `${head}<button type="button" class="swap-opt" data-to="${x.id}"><b>${esc(x.name)}</b><span class="muted">${esc(x.equip)}</span></button>`;
+          })
+          .join('')
+      : '<p class="empty">Keine passende Übung.</p>';
+  }
+
+  function applySwapChoice(to) {
+    const { item, unit: u, occ } = swapCtx;
+    const target = $('#swap-target').value.trim();
+    // In anderen Einheiten nur tauschen, wo die neue Übung nicht schon vorkommt
+    const has = (o) => {
+      const p = PHASES.find((x) => x.id === o.phase);
+      const s = swapped(p, p.units.find((x) => x.id === o.unit));
+      return [...s.items, ...(s.block ?? [])].some((it) => it.id === to && it.id !== item.id);
+    };
+    const places = [{ phase: phase.id, unit: u.id }, ...($('#swap-all').checked ? occ.filter((o) => !to || !has(o)) : [])];
+    for (const o of places) save(swapKey(o.phase, o.unit, item.id), { to, target: to ? target : '' });
+    closeSwap();
+    renderUnit();
+  }
+
+  function closeSwap() {
+    $('#swap-sheet').hidden = true;
+    swapCtx = null;
+  }
+
+  $('#swap-close').addEventListener('click', closeSwap);
+  $('#swap-sheet').addEventListener('click', (e) => {
+    if (e.target.id === 'swap-sheet') return closeSwap();
+    if (e.target.id === 'swap-reset') return applySwapChoice('');
+    const b = e.target.closest('[data-to]');
+    if (b) applySwapChoice(b.dataset.to);
+  });
+  $('#swap-q').addEventListener('input', renderSwapList);
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && swapCtx && closeSwap());
 
   function renderWorkout() {
     seg($('#kr-phase'), PHASES.map((p) => ({ key: p.id, label: p.id, now: p.weeks.includes(curWeek) })), phase.id, 'phase');
@@ -250,6 +339,9 @@ export function initStrength({ store, cloud, ex, onRun }) {
     } else if (b.dataset.run) {
       onRun(b.dataset.run);
       return;
+    } else if (b.dataset.swap) {
+      openSwap(b.dataset.swap, b.dataset.swapUnit);
+      return;
     } else return;
     render();
   });
@@ -294,7 +386,13 @@ export function initStrength({ store, cloud, ex, onRun }) {
     if (!loaded || !timers.size) await load(); // Abgleich kann Neues gebracht haben; ungespeicherte Eingaben nicht verwerfen
     const all = results(rows).map((e) => ({ ...e, num: parseResult(e) }));
     // Shuttle steht schon im Verlauf 5-10-5. Übungen mit nur Wdh (Pogo, Hüpfer, Deadbug) brauchen kein Diagramm.
-    const exs = exerciseList().filter((x) => {
+    // Eingetauschte Übungen aus der Bibliothek, die Einträge haben, kommen als eigene Gruppe dazu
+    const listed = exerciseList();
+    const known = new Set(listed.map((x) => x.id));
+    const extraGroup = { id: 'LIB', label: 'Getauscht', order: Infinity };
+    for (const id of new Set(all.map((e) => e.ex)))
+      if (!known.has(id) && LIB.has(id)) listed.push({ id, name: LIB.get(id).name, shuttle: !!LIB.get(id).shuttle, time: !!LIB.get(id).time, group: extraGroup });
+    const exs = listed.filter((x) => {
       const mine = all.filter((e) => e.ex === x.id);
       const onlyReps = mine.some((e) => e.num.reps != null) && !mine.some((e) => e.num.kg != null || e.num.s != null || e.num.cm != null);
       return !x.shuttle && mine.length && !onlyReps;
@@ -369,8 +467,8 @@ export function initStrength({ store, cloud, ex, onRun }) {
   });
 
   // ---------- Sichern und Importieren (eigene Werte stehen nicht im öffentlichen Code) ----------
-  const ID = /^(ex|week|chk|day)\|[^|]+(\|[^|]+)*$/;
-  const TEXT = ['value', 'reps', 'note', 'morgen', 'ellb', 'extra'];
+  const ID = /^(ex|week|chk|day|swap)\|[^|]+(\|[^|]+)*$/;
+  const TEXT = ['value', 'reps', 'note', 'morgen', 'ellb', 'extra', 'to', 'target'];
   const ts = (v) => Date.parse(v) || 0;
 
   $('#kr-export').addEventListener('click', async () => {
