@@ -86,3 +86,46 @@ test('Kraft: Übungsliste fürs Diagramm nimmt den neuesten Namen, jede Übung e
   assert.equal(list.find((x) => x.id === 'klimmzug').group.id, 'B');
   assert.equal(list[list.length - 1].group.label, 'Schulterblatt-Block');
 });
+
+import { compareResult, sessionsOf, weeksOf, physioDays, streaks, dayKey } from '../js/strength-plan.js';
+
+test('Fortschritt: Vergleich mit dem letzten Mal', () => {
+  assert.deepEqual(compareResult({ value: '40 kg', reps: '8' }, { value: '42,5 kg', reps: '6' }), { dir: 1, text: '+2,5 kg' });
+  assert.deepEqual(compareResult({ value: '40 kg', reps: '8' }, { value: '40 kg', reps: '10' }), { dir: 1, text: '+2 Wdh' });
+  assert.equal(compareResult({ value: '40 kg', reps: '8' }, { value: '40 kg', reps: '8' }).dir, 0);
+  assert.equal(compareResult({ value: '5,40 s' }, { value: '5,30 s' }, { time: true }).dir, 1);
+  assert.equal(compareResult({ value: '40 s' }, { value: '30 s' }).dir, -1); // Halten: länger ist besser
+  assert.equal(compareResult(null, { value: '40 kg' }).dir, null);
+  assert.equal(compareResult({ value: 'locker' }, { value: 'gut' }).dir, null);
+});
+
+test('Fortschritt: Einheiten und Wochen, verpasste Wochen ohne Gym', () => {
+  const r = (phase, unit, ex, week, value, created_at) => [exKey(phase, unit, ex, week), { id: exKey(phase, unit, ex, week), value, created_at }];
+  const rows = new Map([
+    r('P1', 'A', 'kniebeuge', 1, '40 kg', '2026-09-29T08:00:00Z'),
+    r('P1', 'A', 'kniebeuge', 3, '45 kg', '2026-10-13T08:00:00Z'),
+    r('P1', 'B', 'rudern', 3, '30 kg', '2026-12-01T08:00:00Z'), // nachgetragen: ohne Tag
+  ]);
+  const s = sessionsOf(rows);
+  assert.equal(s.length, 3);
+  assert.equal(s[0].date.getDate(), 29);
+  const a3 = s.find((x) => x.week === 3 && x.unit === 'A');
+  assert.deepEqual([a3.up, a3.entries[0].cmp.text], [1, '+5 kg']);
+  assert.equal(s.find((x) => x.unit === 'B').date, null);
+  const w = weeksOf(s, 3);
+  assert.deepEqual(w.map((x) => x.gymDone), [1, 0, 2]);
+  assert.equal(w[2].up, 1);
+});
+
+test('Physio-Tracker: Tage und Serien', () => {
+  const ids = ['a', 'b'];
+  const d = (m, day) => new Date(2026, m, day);
+  const rows = new Map();
+  const done = (date, id) => rows.set(dayKey(date, id), { id: dayKey(date, id), done: true });
+  for (const day of [1, 2, 3, 5, 6]) for (const id of ids) done(d(10, day), id);
+  done(d(10, 7), 'a'); // heute halb
+  const days = physioDays(rows, ids);
+  assert.equal(days.get('2026-11-07'), 1);
+  const full = (x) => days.get(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`) === 2;
+  assert.deepEqual(streaks(full, d(10, 7), d(9, 28)), { current: 2, best: 3 });
+});

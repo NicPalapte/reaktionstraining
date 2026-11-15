@@ -371,3 +371,37 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .trial-list .row > span:nth-child(2), .day-trials .row > span:nth-child(2) { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .day-trials { padding: 0 0 6px 12px; }
 .day:not(:first-child) > summary.row { border-top: 1px solid var(--line); }
+
+/* ---------- Kraft-Verlauf: Wochen und Einheiten ---------- */
+#hs-mode { margin-bottom: 14px; }
+.up { color: var(--ball); font-weight: 700; }
+.down { color: var(--clay); font-weight: 700; }
+.eq { color: var(--muted); font-weight: 700; }
+.wk-row { width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0; border-top: 1px solid var(--line); align-items: center; grid-template-columns: minmax(0, 1fr) auto minmax(78px, auto); gap: 10px; cursor: pointer; }
+.wk-row:first-child { border-top: 0; }
+.wk-row.miss b { color: var(--clay); }
+.wk-row .d { font-size: 13px; }
+.wk-row > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wk-chips { display: flex; gap: 4px; }
+.wk-chip { min-width: 24px; height: 24px; padding: 0 4px; border-radius: 7px; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: var(--muted); border: 1px solid var(--line); box-sizing: border-box; }
+.wk-chip.on { background: var(--ball); color: var(--on-ball); border-color: transparent; }
+.wk-chip.sprint.on { background: var(--surface-2); color: var(--ball); border-color: var(--ball); }
+.wk-res { text-align: right; font-size: 14px; white-space: nowrap; }
+.sess { padding: 0; }
+.sess summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
+.sess summary::-webkit-details-marker { display: none; }
+.sess .rows { padding: 0 16px 6px; }
+.sess-t { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sess-t .d { color: var(--muted); font-size: 13px; }
+.sess-row { grid-template-columns: minmax(0, 1fr) auto auto; font-size: 14px; align-items: baseline; }
+.sess-prev { display: block; font-size: 12px; margin-top: 2px; }
+
+/* ---------- Physio-Tracker ---------- */
+.hb-grid { display: grid; grid-template-columns: auto repeat(7, 1fr); gap: 4px; align-items: center; margin-top: 4px; }
+.hb-h { text-align: center; font-size: 12px; color: var(--muted); }
+.hb-w { font-size: 12px; color: var(--muted); padding-right: 4px; font-variant-numeric: tabular-nums; }
+.hb-c { aspect-ratio: 1; max-height: 34px; width: 100%; border-radius: 6px; border: 0; padding: 0; background: var(--surface-2); }
+.hb-c.part { background: color-mix(in srgb, var(--ball) 40%, var(--surface-2)); }
+.hb-c.full { background: var(--ball); }
+.hb-c.future { background: transparent; border: 1px dashed var(--line); box-sizing: border-box; }
+.hb-c.today { outline: 2px solid var(--ink); outline-offset: 1px; }

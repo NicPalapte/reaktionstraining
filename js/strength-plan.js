@@ -614,3 +614,107 @@ export function swapCandidates(item, taken = []) {
   const list = [...LIB.values()].filter((x) => !skip.has(x.id) && x.cat !== 'warmup' && x.cat !== 'mobil');
   return self ? [...list.filter((x) => x.cat === self.cat), ...list.filter((x) => x.cat !== self.cat)] : list;
 }
+
+// ---------- Fortschritt je Einheit und Woche ----------
+
+const fmtN = (v, d = 1) => v.toLocaleString('de-DE', { maximumFractionDigits: d });
+const signed = (v, unit, d = 1) => `${v > 0 ? '+' : '−'}${fmtN(Math.abs(v), d)}${unit}`;
+
+/**
+ * Vergleich mit dem letzten Mal: Gewicht zählt zuerst, bei gleichem Gewicht die Wdh. Zeit: kleiner ist besser.
+ * @returns {{dir: 1|0|-1|null, text: string}} dir null = nicht vergleichbar
+ */
+export function compareResult(prev, cur, { time = false } = {}) {
+  if (!prev) return { dir: null, text: 'neu' };
+  const a = parseResult(prev);
+  const b = parseResult(cur);
+  const cmp = (x, y, lower = false) => (x === y ? 0 : (y > x) !== lower ? 1 : -1);
+  if (a.kg != null && b.kg != null && a.kg !== b.kg) return { dir: cmp(a.kg, b.kg), text: signed(b.kg - a.kg, ' kg') };
+  if (a.s != null && b.s != null && a.s !== b.s) return { dir: cmp(a.s, b.s, time), text: signed(b.s - a.s, ' s', 2) };
+  if (a.cm != null && b.cm != null && a.cm !== b.cm) return { dir: cmp(a.cm, b.cm), text: signed(b.cm - a.cm, ' cm') };
+  if (a.reps != null && b.reps != null && a.reps !== b.reps) return { dir: cmp(a.reps, b.reps), text: signed(b.reps - a.reps, ' Wdh') };
+  const any = [a.kg, a.s, a.cm, a.reps].some((v) => v != null) && [b.kg, b.s, b.cm, b.reps].some((v) => v != null);
+  return any ? { dir: 0, text: 'gleich' } : { dir: null, text: '' };
+}
+
+/**
+ * Trainierte Einheiten (mind. ein Ergebnis), älteste zuerst, mit Vergleich je Übung zum letzten Mal.
+ * Datum: frühester Eintrag der Einheit, nur wenn er in der Trainingswoche liegt (nachgetragen sonst ohne Tag).
+ * @param {Map<string, object>} rows
+ * @param {(ex: string) => boolean} isTime Übung mit Zeit, bei der kleiner besser ist
+ */
+export function sessionsOf(rows, isTime = () => false) {
+  const all = results(rows);
+  const map = new Map();
+  for (const e of all) {
+    const k = `${e.week}|${e.phase}|${e.unit}`;
+    if (!map.has(k)) map.set(k, { week: e.week, phase: e.phase, unit: e.unit, date: null, entries: [] });
+    const s = map.get(k);
+    const c = Date.parse(rows.get(exKey(e.phase, e.unit, e.ex, e.week))?.created_at);
+    if (Number.isFinite(c) && weekOf(new Date(c)) === e.week && (!s.date || c < s.date)) s.date = c;
+    s.entries.push({ ...e, prev: lastResult(all, e.ex, e.week, e.unit) });
+  }
+  const order = (u) => (u === 'S' ? 9 : u.charCodeAt(0));
+  const list = [...map.values()].sort((a, b) => a.week - b.week || (a.date ?? 0) - (b.date ?? 0) || order(a.unit) - order(b.unit));
+  for (const s of list) {
+    if (s.date) s.date = new Date(s.date);
+    for (const e of s.entries) e.cmp = compareResult(e.prev, e, { time: isTime(e.ex) });
+    s.up = s.entries.filter((e) => e.cmp.dir === 1).length;
+    s.same = s.entries.filter((e) => e.cmp.dir === 0).length;
+    s.down = s.entries.filter((e) => e.cmp.dir === -1).length;
+  }
+  return list;
+}
+
+/** Je Trainingswoche 1…bis: geplante Einheiten, trainierte Einheiten und Summe der Vergleiche. */
+export function weeksOf(sessions, until) {
+  const out = [];
+  for (let w = 1; w <= until; w++) {
+    const p = phaseOfWeek(w);
+    const done = sessions.filter((s) => s.week === w);
+    out.push({
+      week: w, phase: p.id, deload: w === p.dl,
+      units: p.units.map((u) => ({ id: u.id, title: u.title, gym: u.gym, done: done.some((s) => s.unit === u.id) })),
+      gymDone: done.filter((s) => p.units.find((u) => u.id === s.unit)?.gym).length,
+      gymPlanned: p.units.filter((u) => u.gym).length,
+      up: done.reduce((a, s) => a + s.up, 0),
+      same: done.reduce((a, s) => a + s.same, 0),
+      down: done.reduce((a, s) => a + s.down, 0),
+    });
+  }
+  return out;
+}
+
+// ---------- Habit-Tracker Physio ----------
+
+/** Erledigte Physio-Übungen je Tag ("JJJJ-MM-TT" → Anzahl). */
+export function physioDays(rows, ids) {
+  const out = new Map();
+  for (const r of rows.values()) {
+    if (!r.done || !r.id.startsWith('day|')) continue;
+    const [, day, item] = r.id.split('|');
+    if (ids.includes(item)) out.set(day, (out.get(day) ?? 0) + 1);
+  }
+  return out;
+}
+
+/**
+ * Serien vollständiger Tage bis heute. Ist heute noch offen, zählt die Serie bis gestern weiter.
+ * @param {(d: Date) => boolean} full
+ */
+export function streaks(full, today, start) {
+  const d = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  let current = 0;
+  if (!full(d)) d.setDate(d.getDate() - 1);
+  while (d >= start && full(d)) {
+    current++;
+    d.setDate(d.getDate() - 1);
+  }
+  let best = 0;
+  let run = 0;
+  for (const x = new Date(start); x <= today; x.setDate(x.getDate() + 1)) {
+    run = full(x) ? run + 1 : 0;
+    best = Math.max(best, run);
+  }
+  return { current, best };
+}

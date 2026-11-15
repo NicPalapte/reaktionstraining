@@ -187,6 +187,13 @@
 
   <section id="hist-strength" hidden>
     <p class="empty" id="hs-empty" hidden>Noch keine Krafteinträge. Trag im Tab Kraft Gewicht und Wdh ein.</p>
+    <div class="seg small" id="hs-mode" role="tablist" aria-label="Ansicht">
+      <button type="button" role="tab" data-mode="weeks">Wochen</button>
+      <button type="button" role="tab" data-mode="sessions">Einheiten</button>
+      <button type="button" role="tab" data-mode="exercise">Übung</button>
+    </div>
+    <div id="hs-weeks" hidden></div>
+    <div id="hs-sessions" hidden></div>
     <div id="hs-body">
       <label class="hs-pick"><span class="muted">Übung</span><select id="hs-ex"></select></label>
       <div class="stats" id="hs-stats"></div>

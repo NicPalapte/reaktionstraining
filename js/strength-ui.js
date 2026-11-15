@@ -6,6 +6,7 @@ import {
   weekOf, weekStart, fmtDate, phaseOfWeek, isoDay,
   exKey, weekKey, checkKey, dayKey, results, lastResult, historyOf, resultText, parseResult, exerciseList,
   swapKey, swapAt, addSwap, applySwap, occurrencesOf, swapCandidates,
+  sessionsOf, weeksOf, physioDays, streaks, dateKey,
 } from './strength-plan.js';
 import { LIB, libOf, catLabel, searchLibrary } from './library.js';
 import { exerciseDetail } from './library-ui.js';
@@ -15,6 +16,7 @@ const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const ELLB_OK = 3; // Ellb-Ampel: Schmerz ≤3/10 ok
+const PHYSIO = ROUTINE[0].items.map((it) => it.id); // tägliche Physio für den Habit-Tracker
 
 // Start-Buttons der App-Drills im Sprint-Block
 const APP_LABEL = { shuffle: '5-10-5 mit Kamera', spider: 'Spider mit Kamera', brake: 'Stopp-Drill mit Kamera', decoy: 'Reaktionsdrill mit Kamera' };
@@ -88,10 +90,17 @@ export function initStrength({ store, cloud, ex, onRun }) {
   function renderWeekCard() {
     const id = weekKey(phase.id, week);
     const w = row(id);
+    const physio = physioDays(rows, PHYSIO);
+    let tracked = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = weekStart(week);
+      d.setDate(d.getDate() + i);
+      if (physio.get(dateKey(d)) === PHYSIO.length) tracked++;
+    }
     const ellb = Number(String(w.ellb ?? '').replace(',', '.'));
     $('#kr-weekcard').innerHTML = `
       <h2>Woche W${week} <span class="muted">· ab ${fmtDate(weekStart(week))}${week === phase.dl ? ' · Deload' : ''}</span></h2>
-      <label class="field"><span>Morgen-Routine</span><span class="kr-of"><input type="number" min="0" max="7" inputmode="numeric" data-week="morgen" value="${esc(w.morgen)}"> /7</span></label>
+      <label class="field"><span>Morgen-Routine</span><span class="kr-of"><input type="number" min="0" max="7" inputmode="numeric" data-week="morgen" value="${esc(w.morgen)}" placeholder="${tracked}"> /7</span></label>
       <label class="field"><span>Ellbogen</span><span class="kr-of"><input type="number" min="0" max="10" inputmode="numeric" data-week="ellb" value="${esc(w.ellb)}" class="${ellb > ELLB_OK ? 'warn' : ''}"> /10</span></label>
       <label class="field col"><span>${esc(phase.weekExtra)}</span><input type="text" data-week="extra" value="${esc(w.extra)}" placeholder="z. B. 45 min locker"></label>
       ${ellb > ELLB_OK ? '<p class="hint warn-text">Über 3/10: Folgetag beachten, ggf. Arm 1 Stufe zurück.</p>' : ''}`;
@@ -291,12 +300,13 @@ export function initStrength({ store, cloud, ex, onRun }) {
   function renderRoutine() {
     const today = isoDay(now);
     const monday = weekStart(curWeek);
-    const physio = ROUTINE[0].items;
+    const days = physioDays(rows, PHYSIO);
+    const full = (d) => days.get(dateKey(d)) === PHYSIO.length;
     let doneDays = 0;
     for (let i = 0; i < 7; i++) {
       const d = new Date(monday);
       d.setDate(d.getDate() + i);
-      if (physio.every((it) => row(dayKey(d, it.id)).done)) doneDays++;
+      if (full(d)) doneDays++;
     }
     const groups = ROUTINE.map((g) => {
       const on = g.days.includes(today);
@@ -317,7 +327,61 @@ export function initStrength({ store, cloud, ex, onRun }) {
     $('#kr-routine-body').innerHTML = `
       <p class="kr-today">Heute · ${DAYS[today - 1]} ${fmtDate(now)} · Physio diese Woche ${doneDays}/7</p>
       ${groups}
+      ${habitCard(days, full)}
       <div class="card">${[...extra, ...ROUTINE_NOTES].map((n) => `<p class="hint">${esc(n)}</p>`).join('')}</div>`;
+  }
+
+  /** Habit-Tracker: ein Feld pro Tag seit W1, voll = alle Physio-Übungen erledigt. Antippen trägt nach. */
+  function habitCard(days, full) {
+    const start = weekStart(1);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const lastWeek = Math.max(1, weekOf(today));
+    const count = (n) => {
+      let c = 0;
+      for (let i = 0; i < n; i++) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        if (d >= start && full(d)) c++;
+      }
+      return c;
+    };
+    const since = Math.max(1, Math.round((today - start) / 86400000) + 1);
+    const total = count(since);
+    const { current, best } = streaks(full, today, start);
+    const stat = (v, k) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`;
+    let grid = `<span></span>${DAYS.map((d) => `<span class="hb-h">${d}</span>`).join('')}`;
+    for (let w = 1; w <= lastWeek; w++) {
+      grid += `<span class="hb-w">W${w}</span>`;
+      for (let i = 0; i < 7; i++) {
+        const d = weekStart(w);
+        d.setDate(d.getDate() + i);
+        const n = days.get(dateKey(d)) ?? 0;
+        const cls = d > today ? 'future' : n >= PHYSIO.length ? 'full' : n ? 'part' : '';
+        const label = `${DAYS[i]} ${fmtDate(d)}: ${n}/${PHYSIO.length}`;
+        grid += d > today
+          ? `<span class="hb-c future"></span>`
+          : `<button type="button" class="hb-c ${cls}${+d === +today ? ' today' : ''}" data-habit="${dateKey(d)}" title="${label}" aria-label="${label}"></button>`;
+      }
+    }
+    return `<div class="card">
+      <div class="card-head"><h2>Physio-Tracker</h2><span class="kr-days">${total}/${since} Tage</span></div>
+      <div class="stats">
+        ${stat(current, current === 1 ? 'Tag in Folge' : 'Tage in Folge')}
+        ${stat(best, 'Beste Serie')}
+        ${stat(`${count(7)}/7`, 'Letzte 7 Tage')}
+        ${stat(`${Math.round((count(Math.min(30, since)) / Math.min(30, since)) * 100)} %`, `Letzte ${Math.min(30, since)} Tage`)}
+      </div>
+      <div class="hb-grid">${grid}</div>
+      <p class="hint">Voll = alle ${PHYSIO.length} Physio-Übungen. Tag antippen, um ihn nachzutragen oder zu entfernen.</p>
+    </div>`;
+  }
+
+  function toggleHabit(key) {
+    const [y, m, d] = key.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    const all = PHYSIO.every((id) => row(dayKey(date, id)).done);
+    for (const id of PHYSIO) save(dayKey(date, id), { done: !all });
+    renderRoutine();
   }
 
   // ---------- Steuerung ----------
@@ -368,6 +432,9 @@ export function initStrength({ store, cloud, ex, onRun }) {
     } else if (b.dataset.swap) {
       openSwap(b.dataset.swap, b.dataset.swapUnit);
       return;
+    } else if (b.dataset.habit) {
+      toggleHabit(b.dataset.habit);
+      return;
     } else return;
     render();
   });
@@ -416,9 +483,109 @@ export function initStrength({ store, cloud, ex, onRun }) {
   const fmtNum = (v, digits = 1) => v.toLocaleString('de-DE', { maximumFractionDigits: digits });
   let histEx = null;
   let histMetric = null;
+  let histMode = 'weeks';
+
+  /** Name und "kleiner ist besser" je Übungs-ID (Plan und Bibliothek). */
+  function exInfo() {
+    const m = new Map();
+    for (const x of exerciseList()) m.set(x.id, x);
+    for (const [id, x] of LIB) if (!m.has(id)) m.set(id, { id, name: x.name, time: !!x.time, shuttle: !!x.shuttle });
+    return m;
+  }
+
+  const arrows = (s) =>
+    [s.up && `<span class="up">↑${s.up}</span>`, s.same && `<span class="eq">=${s.same}</span>`, s.down && `<span class="down">↓${s.down}</span>`].filter(Boolean).join(' ');
+  const unitName = (phaseId, unitId) => {
+    const u = PHASES.find((p) => p.id === phaseId)?.units.find((x) => x.id === unitId);
+    return u ? [u.title, u.name].filter(Boolean).join(' · ') : unitId;
+  };
+  const dayTxt = (d) => (d ? `${DAYS[isoDay(d) - 1]} ${fmtDate(d)}` : '');
+
+  function renderWeeks(sessions) {
+    refreshToday();
+    const weeks = weeksOf(sessions, curWeek).reverse();
+    const past = weeks.filter((w) => w.week < curWeek); // laufende Woche zählt nicht als verpasst
+    const noGym = past.filter((w) => !w.gymDone).length;
+    const gymDone = weeks.reduce((a, w) => a + w.gymDone, 0);
+    const gymPlanned = past.reduce((a, w) => a + w.gymPlanned, 0) + (weeks[0]?.gymPlanned ?? 0);
+    const up = sessions.reduce((a, s) => a + s.up, 0);
+    const cmp = sessions.reduce((a, s) => a + s.up + s.same + s.down, 0);
+    const stat = (v, k) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`;
+    $('#hs-weeks').innerHTML = `
+      <div class="stats">
+        ${stat(`${gymDone}/${gymPlanned}`, 'Gym-Einheiten')}
+        ${stat(noGym, noGym === 1 ? 'Woche ohne Gym' : 'Wochen ohne Gym')}
+        ${stat(up, 'Mal gesteigert')}
+        ${stat(cmp ? `${Math.round((up / cmp) * 100)} %` : '–', 'besser als zuvor')}
+      </div>
+      <div class="card">
+        <h2>Wochen</h2>
+        <div class="rows">${weeks
+          .map((w) => {
+            const chips = w.units.map((u) => `<span class="wk-chip${u.done ? ' on' : ''}${u.gym ? '' : ' sprint'}" title="${esc(u.title)}">${esc(u.gym ? u.title : 'S')}</span>`).join('');
+            const now = w.week === curWeek;
+            const res = w.gymDone || w.units.some((u) => u.done)
+              ? arrows(w) || '<span class="muted">–</span>'
+              : now ? '<span class="muted">läuft</span>' : '<span class="down">kein Gym</span>';
+            return `<button type="button" class="row wk-row${!w.gymDone && !now ? ' miss' : ''}" data-wk="${w.week}">
+              <span><b>W${w.week}</b> <span class="d">${w.phase}${w.deload ? ' · DL' : ''} · ${fmtDate(weekStart(w.week))}</span></span>
+              <span class="wk-chips">${chips}</span>
+              <span class="wk-res">${res}</span>
+            </button>`;
+          })
+          .join('')}</div>
+        <p class="hint">Gefüllt = trainiert (mind. ein Eintrag). ↑ besser, = gleich, ↓ schlechter als beim letzten Mal. Woche antippen für die Einheiten.</p>
+      </div>`;
+  }
+
+  let sessWeek = null; // Einheiten auf eine Woche gefiltert (aus der Wochenansicht)
+
+  function renderSessions(sessions, info) {
+    const list = [...sessions].reverse().filter((s) => sessWeek == null || s.week === sessWeek);
+    const fmtVal = (e) => esc([e.value, e.reps && `× ${e.reps}`].filter(Boolean).join(' '));
+    $('#hs-sessions').innerHTML = `
+      ${sessWeek != null ? `<p class="kr-today">Nur W${sessWeek} <button type="button" class="btn small ghost" data-sessall>Alle Einheiten</button></p>` : ''}
+      ${list.length ? '' : `<p class="empty">In W${sessWeek} keine Einheit eingetragen.</p>`}
+      ${list
+        .map(
+          (s) => `<details class="card sess">
+          <summary>
+            <span class="sess-t"><b>${esc(unitName(s.phase, s.unit))}</b><span class="d">W${s.week} · ${s.phase}${s.date ? ` · ${dayTxt(s.date)}` : ''}</span></span>
+            <span class="wk-res">${arrows(s) || `<span class="muted">${s.entries.length} Übungen</span>`}</span>
+          </summary>
+          <div class="rows">${s.entries
+            .map((e) => {
+              const c = e.cmp;
+              const cls = c.dir === 1 ? 'up' : c.dir === -1 ? 'down' : c.dir === 0 ? 'eq' : 'muted';
+              return `<div class="row sess-row">
+                <span>${esc(info.get(e.ex)?.name ?? e.ex)}${e.prev ? `<span class="d sess-prev">vorher W${e.prev.week}: ${fmtVal(e.prev)}</span>` : ''}</span>
+                <span>${fmtVal(e)}</span>
+                <span class="${cls}">${esc(c.text)}</span>
+              </div>`;
+            })
+            .join('')}</div>
+        </details>`,
+        )
+        .join('')}`;
+  }
 
   async function renderHistory() {
     if (!loaded || !timers.size) await load(); // Abgleich kann Neues gebracht haben; ungespeicherte Eingaben nicht verwerfen
+    document.querySelectorAll('#hs-mode button').forEach((b) => b.classList.toggle('on', b.dataset.mode === histMode));
+    const any = results(rows).length > 0;
+    $('#hs-mode').hidden = !any;
+    $('#hs-weeks').hidden = !any || histMode !== 'weeks';
+    $('#hs-sessions').hidden = !any || histMode !== 'sessions';
+    if (histMode !== 'exercise' || !any) {
+      $('#hs-body').hidden = true;
+      $('#hs-empty').hidden = any;
+      if (!any) return;
+      const info = exInfo();
+      const sessions = sessionsOf(rows, (id) => !!(info.get(id)?.time || info.get(id)?.shuttle));
+      if (histMode === 'weeks') renderWeeks(sessions);
+      else renderSessions(sessions, info);
+      return;
+    }
     const all = results(rows).map((e) => ({ ...e, num: parseResult(e) }));
     // Shuttle steht schon im Verlauf 5-10-5. Übungen mit nur Wdh (Pogo, Hüpfer, Deadbug) brauchen kein Diagramm.
     // Eingetauschte Übungen aus der Bibliothek, die Einträge haben, kommen als eigene Gruppe dazu
@@ -489,6 +656,26 @@ export function initStrength({ store, cloud, ex, onRun }) {
       .map((e) => `<div class="row"><span class="d">W${e.week} · ${e.phase} ${esc(e.unit)}</span><span>${esc([e.value, e.reps && `× ${e.reps}`].filter(Boolean).join(' '))}</span><span class="d">${esc(e.note)}</span></div>`)
       .join('');
   }
+
+  $('#hs-mode').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-mode]');
+    if (!b) return;
+    histMode = b.dataset.mode;
+    sessWeek = null;
+    renderHistory();
+  });
+  $('#hs-weeks').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-wk]');
+    if (!b) return;
+    histMode = 'sessions';
+    sessWeek = Number(b.dataset.wk);
+    renderHistory();
+  });
+  $('#hs-sessions').addEventListener('click', (e) => {
+    if (!e.target.closest('[data-sessall]')) return;
+    sessWeek = null;
+    renderHistory();
+  });
 
   $('#hs-ex').addEventListener('change', (e) => {
     histEx = e.target.value;
