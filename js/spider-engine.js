@@ -41,6 +41,7 @@ export const SPIDER_DEFAULTS = {
   lostRunMs: 5000,
   minLegMs: 600, // schneller ist kein echter Weg zum Hütchen und zurück
   resultHoldMs: 4000,
+  restMs: 0, // Pause nach einem kompletten Durchgang
   noticeMs: 2500,
 };
 
@@ -215,7 +216,7 @@ export class SpiderEngine {
       order: this.order,
       random: !!this.p.random,
     });
-    this.hold(this.p.resultHoldMs);
+    this.hold(Math.max(this.p.resultHoldMs, this.p.restMs));
   }
 
   wrong() {
@@ -228,7 +229,13 @@ export class SpiderEngine {
     this.hold(this.p.noticeMs);
   }
 
+  /** Pause nach einem Durchgang vorzeitig beenden. */
+  skipRest() {
+    if (this.state === 'hold') this.holdUntil = this.t;
+  }
+
   hold(ms) {
+    if (this.state === 'idle') return; // im Ergebnis-Handler gestoppt (Satz voll): gestoppt lassen
     this.holdUntil = this.t + ms;
     this.setState('hold');
   }

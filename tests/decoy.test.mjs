@@ -314,3 +314,21 @@ test('Abbremsen: nur "vorne" erlaubt -> wird zur normalen Laufaufgabe', () => {
   const { results } = runDecoy({ weights: { brake: 1 }, behave: () => 'run', commands: ['front'], n: 2 });
   assert.ok(results.every((r) => r.type === 'go' && r.correct), JSON.stringify(results));
 });
+
+test('Reaktionsdrill: Pause nach einem Block hält an und geht danach weiter', () => {
+  let eng;
+  eng = new DecoyEngine({ rand: () => 0.5, onEvent: (n, d) => n === 'round' && d.rounds % 5 === 0 && eng.rest(20000) });
+  eng.start();
+  let t = 0;
+  for (; t < 1000; t += 33) eng.update(t, { dx: 0, r: 1 });
+  eng.rounds = 4;
+  eng.returning = true; // fünfte Aufgabe gerade erledigt, Person zurück in der Mitte
+  eng.setState('away');
+  for (; eng.state !== 'hold' && t < 5000; t += 33) eng.update(t, { dx: 0, r: 1 });
+  assert.equal(eng.state, 'hold');
+  const t0 = t;
+  for (; eng.state === 'hold' && t < t0 + 30000; t += 33) eng.update(t, { dx: 0, r: 1 });
+  assert.ok(t - t0 >= 19900 && t - t0 < 20200, `Pause ${t - t0}`);
+  for (let k = 0; k < 200 && eng.state !== 'countdown'; k++, t += 33) eng.update(t, { dx: 0, r: 1 });
+  assert.equal(eng.state, 'countdown');
+});

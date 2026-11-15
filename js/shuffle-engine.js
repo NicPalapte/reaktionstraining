@@ -35,9 +35,15 @@ export const SHUFFLE_DEFAULTS = {
   runTimeoutMs: 15000,
   lostPoseMs: 1000, // vor dem Start darf die Person nicht so lange fehlen
   lostRunMs: 8000, // im Lauf ist Fehlen normal (außerhalb des Bildes)
-  minRunMs: 2500,
+  minRunMs: 3000, // schneller ist niemand (Weltklasse ca. 3,8 s): dann wurde falsch erkannt
+  runRLo: 0.6, // im Lauf: Person muss etwa im kalibrierten Abstand sein (sonst Hintergrund/Fehlerkennung)
+  runRHi: 1.7,
+  jumpDx: 0.5, // erlaubter Sprung zwischen zwei Bildern: jumpDx + jumpPerMs * Abstand (ca. 10 m/s)
+  jumpPerMs: 0.02,
+  finishBehind: 3.5, // spät erkannt: höchstens so weit hinter der Mitte (ca. 1,75 m) darf der Abschnitt beginnen
   maxRunMs: 15000,
   resultHoldMs: 3500,
+  restMs: 0, // Pause nach einem gelaufenen Durchgang (Ergebnis wird währenddessen angezeigt)
   noticeMs: 2500,
   gapMs: 150, // länger ohne Person im Bild = Lücke (nicht darüber hinweg interpolieren)
 };
@@ -52,6 +58,7 @@ export class ShuffleEngine {
     this.buf = new Ring(4000);
     this.state = 'idle';
     this.lastDirs = [];
+    this.dirCount = { [-1]: 0, [1]: 0 };
     this.t = 0;
     this.clear();
   }
@@ -71,6 +78,7 @@ export class ShuffleEngine {
     this.ref = 0;
     this.excA = false;
     this.holdUntil = null;
+    this.pendCross = null; // vorgemerkte 1. Querung, wird erst mit weiteren Bildern bestätigt
   }
 
   setState(s) {
@@ -79,6 +87,7 @@ export class ShuffleEngine {
   }
 
   start() {
+    this.dirCount = { [-1]: 0, [1]: 0 }; // Pfeile je Seite in diesem Satz
     this.buf.clear();
     this.clear();
     this.setState('wait_center');
@@ -122,6 +131,8 @@ export class ShuffleEngine {
       }
       return;
     }
+    if ((this.state === 'go' || RUN.includes(this.state)) && !this.plausible(t, s)) s = null;
+    if (s == null) return this.update(t, null);
     this.lostSince = null;
     this.lastDx = s.dx;
     if (this.lastVisT == null || t - this.lastVisT > p.gapMs) this.segStartT = t; // neuer zusammenhängender Abschnitt
@@ -136,16 +147,8 @@ export class ShuffleEngine {
         return;
       case 'go':
         return this.onGo(t, s.dx);
-      case 'to_a': {
-        const away = s.dx * this.dir;
-        if (away >= p.awayDx) this.excA = true;
-        if (this.excA && away <= 0) {
-          // 1. Querung der Mitte: von der Pfeilseite kommend
-          this.tCross = this.cross((v) => v * this.dir, 0);
-          this.setState('to_b');
-        }
-        return;
-      }
+      case 'to_a':
+        return this.onToA(t, s.dx);
       case 'to_b':
         if (-s.dx * this.dir >= p.awayDx) this.setState('return');
         return;
@@ -154,6 +157,57 @@ export class ShuffleEngine {
         return;
       default:
     }
+  }
+
+  /**
+   * Fehlerkennungen aussortieren: Im Lauf zählt nur eine Person im kalibrierten Abstand
+   * (nicht z. B. jemand auf dem Nachbarplatz), und sie kann nicht von Bild zu Bild springen.
+   */
+  plausible(t, s) {
+    const p = this.p;
+    if (s.r < p.runRLo || s.r > p.runRHi) return false;
+    if (this.lastVisT != null && this.lostSince == null) {
+      const dt = t - this.lastVisT;
+      if (dt <= p.gapMs && Math.abs(s.dx - this.lastDx) > p.jumpDx + p.jumpPerMs * dt) return false;
+    }
+    return true;
+  }
+
+  /** Bilder des aktuellen zusammenhängenden Abschnitts. */
+  segment() {
+    return this.buf.items.filter((i) => i.t >= this.segStartT);
+  }
+
+  /**
+   * Auf dem Weg zur Pfeilseite und zurück. Die 1. Querung der Mitte zählt nur, wenn die Person
+   * tatsächlich von der Pfeilseite zur Gegenseite läuft (mehrere Bilder, passende Richtung).
+   * Ein einzelnes Geisterbild in der Mitte oder auf der Gegenseite reicht nicht mehr.
+   */
+  onToA(t, dx) {
+    const p = this.p;
+    const fn = (v) => v * this.dir;
+    const away = fn(dx);
+    if (away >= p.awayDx) this.excA = true;
+    if (!this.excA || away > 0) {
+      this.pendCross = null;
+      return;
+    }
+    const seg = this.segment();
+    if (!this.pendCross || this.pendCross.seg !== this.segStartT) {
+      const prev = seg[seg.length - 2];
+      const direct = prev && fn(prev.v) > 0; // im selben Abschnitt von der Pfeilseite gekommen
+      this.pendCross = { seg: this.segStartT, t: direct ? this.cross(fn, 0) : seg[0].t, i: Math.max(0, seg.length - 2) };
+    }
+    const pts = seg.slice(this.pendCross.i);
+    if (pts.length < 3) return;
+    const { k } = regress(
+      pts.map((i) => i.t),
+      pts.map((i) => fn(i.v)),
+    );
+    if (k >= 0) return; // bewegt sich nicht Richtung Gegenseite
+    this.tCross = this.pendCross.t;
+    this.pendCross = null;
+    this.setState('to_b');
   }
 
   timeoutReason() {
@@ -203,11 +257,23 @@ export class ShuffleEngine {
     this.setState('countdown');
   }
 
-  fire(t) {
+  /**
+   * Seite für den nächsten Pfeil: zufällig, aber im Satz ausgeglichen (höchstens 2 Pfeile Vorsprung
+   * für eine Seite) und nie mehr als 2-mal hintereinander dieselbe Seite.
+   */
+  pickDir() {
+    const c = this.dirCount;
     let dir = this.rand() < 0.5 ? -1 : 1;
+    if (c[dir] - c[-dir] >= 2) dir = -dir;
     const l = this.lastDirs;
     if (l.length >= 2 && l[l.length - 1] === l[l.length - 2] && l[l.length - 1] === dir) dir = -dir;
-    this.lastDirs.push(dir);
+    return dir;
+  }
+
+  fire(t) {
+    const dir = this.pickDir();
+    this.lastDirs = [...this.lastDirs.slice(-1), dir];
+    this.dirCount[dir]++;
     this.dir = dir;
     this.tArrow = t;
     this.ref = median(this.buf.since(t - 300).map((i) => i.v));
@@ -305,14 +371,18 @@ export class ShuffleEngine {
     } else {
       // Die Person wurde erst in oder hinter der Zielzone wiedererkannt (z. B. am Bildrand zu spät).
       // Der Durchgang liegt vor dem ersten Bild: aus den ersten Bildern des Abschnitts zurückrechnen.
-      const seg = it.filter((i) => i.t >= this.segStartT);
+      // Nur wenn die Person dabei von der Gegenseite kommt: Wer von der Pfeilseite zurück ins Bild
+      // läuft (z. B. nach einer Fehlerkennung), hat die Gegenseite noch nicht erreicht.
+      const seg = this.segment();
+      if (fn(seg[0].v) < -p.finishBehind) return;
       if (seg.length < 4) return; // noch zu wenige Bilder für eine Geschwindigkeit
       const first = seg.slice(0, 4);
       const { k, mx, my } = regress(
         first.map((i) => i.t),
         first.map((i) => fn(i.v)),
       );
-      tLine = k < 0 ? Math.max(first[0].t - 400, mx - my / k) : first[0].t;
+      if (k >= 0) return; // bewegt sich nicht Richtung Pfeilseite
+      tLine = Math.max(first[0].t - 400, mx - my / k);
     }
     const run = tLine - this.tOnset;
     const reaction = this.tOnset - this.tArrow;
@@ -345,7 +415,8 @@ export class ShuffleEngine {
       ...res,
     };
     this.emit('result', result);
-    this.hold(this.p.resultHoldMs);
+    // Nach einem gelaufenen Durchgang Pause, nach Fehlstart/falscher Richtung nicht
+    this.hold(result.run_ms != null ? Math.max(this.p.resultHoldMs, this.p.restMs) : this.p.resultHoldMs);
   }
 
   abort(reason) {
@@ -353,7 +424,13 @@ export class ShuffleEngine {
     this.hold(this.p.noticeMs);
   }
 
+  /** Pause nach einem Durchgang vorzeitig beenden. */
+  skipRest() {
+    if (this.state === 'hold') this.holdUntil = this.t;
+  }
+
   hold(ms) {
+    if (this.state === 'idle') return; // im Ergebnis-Handler gestoppt (Satz voll): gestoppt lassen
     this.holdUntil = this.t + ms;
     this.setState('hold');
   }

@@ -241,6 +241,7 @@
   <div class="card form">
     <h2>5-10-5</h2>
     <label class="field"><span>Durchgänge pro Satz</span><input type="number" min="1" max="30" inputmode="numeric" data-key="rounds"></label>
+    <label class="field"><span>Pause nach jedem Durchgang (s)</span><input type="number" min="0" max="300" step="15" inputmode="numeric" data-key="rest"></label>
     <label class="field"><span>Pfeil frühestens nach (s)</span><input type="number" min="0.5" max="8" step="0.5" inputmode="decimal" data-key="minDelay"></label>
     <label class="field"><span>Pfeil spätestens nach (s)</span><input type="number" min="1" max="10" step="0.5" inputmode="decimal" data-key="maxDelay"></label>
   </div>
@@ -248,6 +249,8 @@
   <div class="card form">
     <h2>Reaktionsdrill</h2>
     <label class="field"><span>Aufgaben pro Satz</span><input type="number" min="4" max="60" inputmode="numeric" data-key="decoyRounds"></label>
+    <label class="field"><span>Pause nach je … Aufgaben (0 = keine)</span><input type="number" min="0" max="30" inputmode="numeric" data-key="decoyBlock"></label>
+    <label class="field"><span>Länge der Pause (s)</span><input type="number" min="0" max="300" step="15" inputmode="numeric" data-key="decoyRest"></label>
     <label class="field switch"><span>Links</span><input type="checkbox" data-key="cmdLeft"></label>
     <label class="field switch"><span>Rechts</span><input type="checkbox" data-key="cmdRight"></label>
     <label class="field switch"><span>Vorne</span><input type="checkbox" data-key="cmdFront"></label>
@@ -263,6 +266,7 @@
   <div class="card form">
     <h2>Spider-Drill</h2>
     <label class="field"><span>Durchgänge pro Satz</span><input type="number" min="1" max="10" inputmode="numeric" data-key="spiderRounds"></label>
+    <label class="field"><span>Pause nach jedem Durchgang (s)</span><input type="number" min="0" max="300" step="15" inputmode="numeric" data-key="spiderRest"></label>
     <label class="field switch"><span>Reihenfolge zufällig</span><input type="checkbox" data-key="spiderRandom"></label>
     <p class="hint">Aus: klassisch links, vorne-links, vorne, vorne-rechts, rechts. Zufällig ist zusätzlich Reaktionstraining; die Zeiten sind dann nicht direkt mit klassisch vergleichbar.</p>
   </div>
@@ -366,6 +370,10 @@
       <div class="hud-sub" id="hud-sub"></div>
       <div class="meter" id="cal-meter" hidden><i id="cal-bar"></i></div>
       <button type="button" class="btn small" id="btn-use-cal" hidden>Letzte Kalibrierung verwenden</button>
+      <button type="button" class="btn small" id="btn-skip-rest" hidden>Pause überspringen</button>
+      <div class="stepper" data-stepper="block" hidden><span>Pause alle</span><button type="button" data-d="-1" aria-label="Weniger Aufgaben bis zur Pause">−</button><b></b><button type="button" data-d="1" aria-label="Mehr Aufgaben bis zur Pause">+</button></div>
+      <div class="stepper" data-stepper="rest" hidden><span>Pause</span><button type="button" data-d="-1" aria-label="Kürzere Pause">−</button><b></b><button type="button" data-d="1" aria-label="Längere Pause">+</button></div>
+      <div class="stepper" data-stepper="rounds" hidden><span>Durchgänge</span><button type="button" data-d="-1" aria-label="Weniger Durchgänge">−</button><b></b><button type="button" data-d="1" aria-label="Mehr Durchgänge">+</button></div>
     </div>
   </div>
 
@@ -385,6 +393,10 @@
     <div class="card">
       <h2 id="summary-title">Satz beendet</h2>
       <div class="stats" id="summary-stats"></div>
+      <div class="rows trial-list" id="summary-list" hidden></div>
+      <div class="stepper" data-stepper="block" hidden><span>Pause alle</span><button type="button" data-d="-1" aria-label="Weniger Aufgaben bis zur Pause">−</button><b></b><button type="button" data-d="1" aria-label="Mehr Aufgaben bis zur Pause">+</button></div>
+      <div class="stepper" data-stepper="rest" hidden><span>Pause</span><button type="button" data-d="-1" aria-label="Kürzere Pause">−</button><b></b><button type="button" data-d="1" aria-label="Längere Pause">+</button></div>
+      <div class="stepper" data-stepper="rounds" hidden><span>Durchgänge</span><button type="button" data-d="-1" aria-label="Weniger Durchgänge">−</button><b></b><button type="button" data-d="1" aria-label="Mehr Durchgänge">+</button></div>
       <div class="row-actions">
         <button type="button" class="btn primary" id="btn-again">Noch ein Satz</button>
         <button type="button" class="btn ghost" id="btn-done">Fertig</button>

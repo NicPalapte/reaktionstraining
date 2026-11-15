@@ -68,8 +68,28 @@ export class CommandEngine {
     this.setState('idle');
   }
 
-  update(t, s) {
+  /** Pause (z. B. nach einem Block von Aufgaben): danach wieder bereitstellen. */
+  rest(ms) {
     if (this.state === 'idle') return;
+    this.holdUntil = this.t + ms;
+    this.returning = false;
+    this.setState('hold');
+  }
+
+  skipRest() {
+    if (this.state === 'hold') this.holdUntil = this.t;
+  }
+
+  update(t, s) {
+    this.t = t;
+    if (this.state === 'idle') return;
+    if (this.state === 'hold') {
+      if (t >= this.holdUntil) {
+        this.clear();
+        this.setState('wait_ready');
+      }
+      return;
+    }
     const p = this.p;
     const lost = s == null;
     if (lost) {
@@ -96,8 +116,9 @@ export class CommandEngine {
         if (this.returning) {
           this.returning = false;
           this.rounds += 1;
+          const st = this.state;
           this.emit('round', { rounds: this.rounds, issued: this.issued });
-          if (this.state === 'idle') return;
+          if (this.state !== st) return; // gestoppt oder Pause
         }
         this.planned = t + p.minDelayMs + this.rand() * (p.maxDelayMs - p.minDelayMs);
         this.notReadySince = null;

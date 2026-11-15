@@ -148,6 +148,16 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // ---------- Training ----------
+// Durchgänge pro Satz, im Drill einstellbar (gleiche Einstellung wie unter Einstellungen)
+// Pause nach jedem Durchgang ebenso (in 15-s-Schritten, 0 = aus)
+// Reaktionsdrill: Pause nach einem Block von Aufgaben (block = Aufgaben bis zur Pause)
+const fmtRest = (v) => (v ? fmtDur(v * 1000).replace(' min', '') : 'aus');
+const STEPPERS = {
+  rounds: { shuffle: 'rounds', spider: 'spiderRounds', step: 1, min: 1, max: { shuffle: 30, spider: 10 }, fmt: String },
+  block: { decoy: 'decoyBlock', step: 1, min: 0, max: { decoy: 30 }, fmt: (v) => (v ? `${v} Aufg.` : 'aus') },
+  rest: { shuffle: 'rest', spider: 'spiderRest', decoy: 'decoyRest', step: 15, min: 0, max: { shuffle: 300, spider: 300, decoy: 300 }, fmt: fmtRest },
+};
+
 class Session {
   constructor(kind, { preset = null, returnTo = 'home' } = {}) {
     this.kind = kind;
@@ -235,6 +245,9 @@ class Session {
     $('#hud-count').textContent = '';
     $('#cal-meter').hidden = true;
     $('#btn-use-cal').hidden = true;
+    $('#summary-list').hidden = true;
+    this.showStepper(null);
+    $('#btn-skip-rest').hidden = true;
     $('#hud').dataset.mode = '';
     $('#sim').hidden = !SIM;
   }
@@ -258,6 +271,7 @@ class Session {
     this.phase = 'calibrate';
     this.applyCamera(false);
     $('#cal-meter').hidden = false;
+    this.showStepper('hud');
     const saved = loadCalibration();
     const btn = $('#btn-use-cal');
     btn.hidden = !saved?.x0 || !saved?.s0;
@@ -284,6 +298,7 @@ class Session {
     this.applyCamera(true);
     $('#cal-meter').hidden = true;
     $('#btn-use-cal').hidden = true;
+    this.showStepper(null);
     this.toSample = makeSample(cal);
     this.createEngine();
     const delay = cal.warning ? 3500 : 600;
@@ -299,12 +314,12 @@ class Session {
     const maxDelayMs = Math.max(settings.maxDelay, settings.minDelay + 0.5) * 1000;
     if (this.kind === 'shuffle') {
       this.eng = new ShuffleEngine({
-        params: { minDelayMs, maxDelayMs },
+        params: { minDelayMs, maxDelayMs, restMs: settings.rest * 1000 },
         onEvent: (n, d) => this.onShuffleEvent(n, d),
       });
     } else if (this.kind === 'spider') {
       this.eng = new SpiderEngine({
-        params: { random: settings.spiderRandom, minDelayMs, maxDelayMs },
+        params: { random: settings.spiderRandom, minDelayMs, maxDelayMs, restMs: settings.spiderRest * 1000 },
         onEvent: (n, d) => this.onSpiderEvent(n, d),
       });
     } else if (this.kind === 'decoy') {
@@ -347,6 +362,32 @@ class Session {
     this.saved = false;
     this.updateCount();
     this.eng.start();
+  }
+
+  /** Regler für Durchgänge und Pausen: in der Kalibrierung und am Satzende sichtbar (Stopp-Drill ohne Pausen). */
+  showStepper(where) {
+    document.querySelectorAll('[data-stepper]').forEach((el) => {
+      const cfg = STEPPERS[el.dataset.stepper];
+      const key = this.preset ? null : cfg[this.kind];
+      const on = !!key && where != null && el.closest(where === 'summary' ? '#summary' : '#hud') != null;
+      el.hidden = !on;
+      if (!on) return;
+      const v = settings[key];
+      el.querySelector('b').textContent = cfg.fmt(v);
+      el.querySelector('[data-d="-1"]').disabled = v <= cfg.min;
+      el.querySelector('[data-d="1"]').disabled = v >= cfg.max[this.kind];
+    });
+  }
+
+  stepSetting(name, d) {
+    const cfg = STEPPERS[name];
+    const key = this.preset ? null : cfg[this.kind];
+    if (!key) return;
+    settings[key] = Math.min(cfg.max[this.kind], Math.max(cfg.min, (Number(settings[key]) || 0) + d * cfg.step));
+    saveSettings(settings);
+    if (name === 'rest' && this.eng?.p) this.eng.p.restMs = settings[key] * 1000;
+    this.showStepper(this.phase === 'calibrate' ? 'hud' : 'summary');
+    this.updateCount();
   }
 
   updateCount() {
@@ -478,6 +519,7 @@ class Session {
   onResult(r) {
     this.hideSignal();
     const rec = {
+      id: newSessionId(),
       exercise: EX_SHUFFLE,
       session_id: this.sessionId,
       direction: r.direction,
@@ -526,7 +568,7 @@ class Session {
     if (r.valid && this.trials.length >= settings.rounds) {
       this.eng.stop();
       setTimeout(() => !this.stopped && this.finishSet(), 3200);
-    }
+    } else if (r.run_ms != null) this.startRest(3500);
   }
 
   // ----- Kreuzvorhaben (Täuschungen) -----
@@ -618,13 +660,22 @@ class Session {
       }
       case 'timeout':
         return this.notice('Keine Bewegung erkannt', 'Ich warte, bis du wieder bereit stehst.');
-      case 'round':
+      case 'round': {
         this.updateCount();
         if (d.rounds >= this.target) {
           this.eng.stop();
           this.finishSet();
+          return;
+        }
+        // Nach jedem Block (Standard: 5 Aufgaben) eine Pause, nicht im Stopp-Drill
+        const block = this.preset ? 0 : settings.decoyBlock;
+        if (block > 0 && settings.decoyRest > 0 && d.rounds % block === 0) {
+          this.eng.rest(settings.decoyRest * 1000);
+          if (settings.voice) audio.speak('Pause');
+          this.startRest(1500);
         }
         return;
+      }
       default:
     }
   }
@@ -662,6 +713,7 @@ class Session {
   onSpiderResult(r) {
     this.hideSignal();
     const rec = {
+      id: newSessionId(),
       exercise: EX_SPIDER,
       session_id: this.sessionId,
       direction: null,
@@ -707,7 +759,7 @@ class Session {
     if (r.valid && this.trials.length >= settings.spiderRounds) {
       this.eng.stop();
       setTimeout(() => !this.stopped && this.finishSet(), 3500);
-    }
+    } else if (r.total_ms != null) this.startRest(4000);
   }
 
   /** Ø Zeit je Hütchen über alle gültigen Durchgänge des Satzes. */
@@ -749,6 +801,39 @@ class Session {
         return;
       default:
     }
+  }
+
+  // ----- Pause zwischen den Durchgängen -----
+  /** Nach showMs (Ergebnis lesen) läuft der Pausen-Countdown, bis die Engine die Pause beendet. */
+  startRest(showMs) {
+    this.stopRest();
+    const eng = this.eng;
+    const t0 = performance.now();
+    let lastSec = null;
+    this.restTimer = setInterval(() => {
+      if (this.stopped || this.eng !== eng || eng.state !== 'hold') return this.stopRest();
+      if (performance.now() - t0 < showMs) return;
+      const sec = Math.ceil((eng.holdUntil - performance.now()) / 1000); // Bildzeitstempel laufen auf performance.now()
+      if (sec <= 0) return;
+      if (sec === lastSec) return;
+      lastSec = sec;
+      $('#result').hidden = true;
+      $('#btn-skip-rest').hidden = false;
+      this.hud(fmtDur(sec * 1000).replace(' min', ''), 'Pause. Danach zurück in die Mitte.', 'rest');
+      if (sec <= 3 && settings.sound) audio.beep(660, 90);
+      if (sec === 10 && settings.voice) audio.speak('Noch 10 Sekunden');
+    }, 200);
+  }
+
+  stopRest() {
+    clearInterval(this.restTimer);
+    this.restTimer = null;
+    $('#btn-skip-rest').hidden = true;
+  }
+
+  skipRest() {
+    this.eng?.skipRest?.();
+    this.stopRest();
   }
 
   // ----- Satzende -----
@@ -809,38 +894,85 @@ class Session {
     cloud.scheduleSync();
   }
 
-  async finishSet() {
-    this.hideSignal();
-    $('#result').hidden = true;
-    this.hud('', '', '');
-    await this.saveSession().catch((e) => console.warn(e));
+  /** Satzende 5-10-5 / Spider: Kennzahlen und die einzelnen Zeiten (einzeln löschbar, z. B. Ausreißer). */
+  renderSummary() {
     const box = $('#summary-stats');
+    const list = $('#summary-list');
+    $('#summary-title').textContent = 'Satz beendet';
+    const runs = this.trials.map((t) => t.run_ms);
+    const stat = ([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`;
+    if (!runs.length) {
+      box.innerHTML = '<p class="empty">Keine gültigen Zeiten in diesem Satz.</p>';
+      list.hidden = true;
+      return;
+    }
     if (this.kind === 'shuffle') {
-      const runs = this.trials.map((t) => t.run_ms);
       const side = (d) => avg(this.trials.filter((t) => t.direction === d).map((t) => t.run_ms));
       const l = side('left');
       const r = side('right');
-      $('#summary-title').textContent = 'Satz beendet';
       box.innerHTML = [
         ['Beste Zeit', fmtS(Math.min(...runs))],
         ['Ø Laufzeit', fmtS(avg(runs))],
         ['Ø Reaktion', fmtMs(avg(this.trials.map((t) => t.reaction_ms)))],
         ['Ø links / rechts', `${l != null ? fmtSec(l) : '–'} / ${r != null ? fmtSec(r) : '–'}`],
       ]
-        .map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`)
+        .map(stat)
         .join('');
-    } else if (this.kind === 'spider') {
-      const runs = this.trials.map((t) => t.run_ms);
+    } else {
       const legs = Object.entries(this.spiderLegAvg()).sort((a, b) => b[1] - a[1]);
-      $('#summary-title').textContent = 'Satz beendet';
       box.innerHTML = [
         ['Beste Zeit', fmtS(Math.min(...runs))],
         ['Ø Zeit', fmtS(avg(runs))],
         ['Langsamstes Hütchen', legs.length ? `${dirLabel[legs[0][0]]} ${fmtSec(legs[0][1])}` : '–'],
         ['Dauer', fmtDur(Date.now() - this.setStart)],
       ]
-        .map(([k, v]) => `<div class="stat"><b>${v}</b><span>${k}</span></div>`)
+        .map(stat)
         .join('');
+    }
+    list.innerHTML = this.trials
+      .map((t, i) => {
+        const info = this.kind === 'shuffle' ? `${dirLabel[t.direction]} · ${fmtMs(t.reaction_ms)}` : t.reason ?? '';
+        return `<div class="row"><span class="d">${i + 1}.</span><span>${info}</span><b>${fmtS(t.run_ms)}</b><button type="button" class="del-btn" data-del="${t.id}" aria-label="Zeit ${fmtS(t.run_ms)} löschen">✕</button></div>`;
+      })
+      .join('');
+    list.hidden = false;
+  }
+
+  async deleteTrial(id) {
+    const t = this.trials.find((x) => x.id === id);
+    if (!t || !confirm(`Zeit ${fmtS(t.run_ms)} löschen?`)) return;
+    this.trials = this.trials.filter((x) => x.id !== id);
+    await deleteTrialEverywhere(id);
+    // Satz-Eintrag mit den übrigen Zeiten aktualisieren
+    const ses = (await store.listSessions()).find((x) => x.session_id === this.sessionId);
+    if (ses) {
+      if (!this.trials.length) await store.put('sessions', { ...ses, rounds: 0 });
+      else {
+        const rs = this.trials.map((x) => x.run_ms);
+        await store.put('sessions', {
+          ...ses,
+          rounds: rs.length,
+          best_run_ms: Math.min(...rs),
+          avg_run_ms: Math.round(avg(rs)),
+          ...(this.kind === 'shuffle' ? { avg_reaction_ms: Math.round(avg(this.trials.map((x) => x.reaction_ms))) } : { meta: { ...ses.meta, legs: this.spiderLegAvg() } }),
+        });
+      }
+    }
+    const prior = (await store.listTrials(this.exercise)).filter((x) => x.valid && x.run_ms != null);
+    this.best = prior.length ? Math.min(...prior.map((x) => x.run_ms)) : null;
+    this.renderSummary();
+  }
+
+  async finishSet() {
+    this.hideSignal();
+    $('#result').hidden = true;
+    this.hud('', '', '');
+    await this.saveSession().catch((e) => console.warn(e));
+    const box = $('#summary-stats');
+    $('#summary-list').hidden = true;
+    this.showStepper('summary');
+    if (this.kind === 'shuffle' || this.kind === 'spider') {
+      this.renderSummary();
     } else if (this.kind === 'decoy' && this.preset === 'brake') {
       $('#summary-title').textContent = 'Stopp-Drill beendet';
       const st = this.eng.stats.brake;
@@ -885,6 +1017,7 @@ class Session {
 
   again() {
     $('#summary').hidden = true;
+    this.showStepper(null);
     this.sessionId = newSessionId();
     this.startSet();
   }
@@ -904,6 +1037,12 @@ class Session {
     session = null;
     show(this.returnTo);
   }
+}
+
+/** Zeit lokal löschen und, wenn angemeldet, auch im Konto (sonst beim nächsten Abgleich). */
+async function deleteTrialEverywhere(id) {
+  await store.deleteTrial(id);
+  await cloud.deleteTrial(id);
 }
 
 function startSession(kind, opts) {
@@ -935,6 +1074,14 @@ $('#start-couch').addEventListener('click', () => {
 });
 $('#btn-stop').addEventListener('click', () => session?.end());
 $('#btn-again').addEventListener('click', () => session?.again());
+$('#summary-list').addEventListener('click', (e) => {
+  const id = e.target.closest('[data-del]')?.dataset.del;
+  if (id) session?.deleteTrial(id);
+});
+document.querySelectorAll('[data-stepper] button').forEach((b) =>
+  b.addEventListener('click', () => session?.stepSetting(b.closest('[data-stepper]').dataset.stepper, Number(b.dataset.d))),
+);
+$('#btn-skip-rest').addEventListener('click', () => session?.skipRest());
 $('#btn-done').addEventListener('click', () => session?.end());
 $('#btn-error-back').addEventListener('click', () => session?.end());
 
@@ -950,6 +1097,19 @@ if (SIM) {
 
 // ---------- Verlauf ----------
 let histEx = EX_SHUFFLE;
+const openDays = new Set(); // aufgeklappte Tage im Verlauf bleiben nach dem Löschen offen
+$('#hist-days').addEventListener('toggle', (e) => {
+  const d = e.target.dataset?.day;
+  if (d) e.target.open ? openDays.add(d) : openDays.delete(d);
+}, true);
+$('#hist-days').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-del]');
+  if (!btn) return;
+  const t = (await store.listTrials(EX_SHUFFLE)).find((x) => x.id === btn.dataset.del);
+  if (!t || !confirm(`Zeit ${fmtS(t.run_ms)} löschen?`)) return;
+  await deleteTrialEverywhere(t.id);
+  renderHistory();
+});
 let histMetric = 'run_ms';
 
 document.querySelectorAll('.seg [data-ex]').forEach((b) =>
@@ -1004,16 +1164,24 @@ async function renderHistory() {
       byDay.get(k).push(t);
     }
     const rows = [...byDay.entries()].reverse().slice(0, 30);
+    // Tag aufklappen: einzelne Zeiten, jede einzeln löschbar (Ausreißer entfernen)
+    const time = (iso) => new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
     $('#hist-days').innerHTML = rows.length
       ? rows
           .map(([day, ts]) => {
             const runs = ts.map((t) => t.run_ms);
-            return `<div class="row"><span class="d">${day}</span><span>${ts.length}×</span><span>Best ${fmtS(Math.min(...runs))} · Ø ${fmtS(avg(runs))}</span></div>`;
+            const items = ts
+              .map(
+                (t) =>
+                  `<div class="row"><span class="d">${time(t.created_at)}</span><span>${dirLabel[t.direction] ?? ''} · ${fmtMs(t.reaction_ms)}</span><b>${fmtS(t.run_ms)}</b><button type="button" class="del-btn" data-del="${t.id}" aria-label="Zeit ${fmtS(t.run_ms)} vom ${day} löschen">✕</button></div>`,
+              )
+              .join('');
+            return `<details class="day" data-day="${day}"${openDays.has(day) ? ' open' : ''}><summary class="row"><span class="d">${day}</span><span>${ts.length}×</span><span>Best ${fmtS(Math.min(...runs))} · Ø ${fmtS(avg(runs))}</span><span class="chev">›</span></summary><div class="rows day-trials">${items}</div></details>`;
           })
           .join('')
       : '<p class="empty">Noch keine Sätze.</p>';
   } else if (histEx === EX_SPIDER) {
-    const sessions = (await store.listSessions()).filter((s) => s.exercise === EX_SPIDER).reverse();
+    const sessions = (await store.listSessions()).filter((s) => s.exercise === EX_SPIDER && s.rounds > 0).reverse();
     $('#hist-games-title').textContent = 'Spider-Drill';
     $('#hist-games-list').innerHTML = sessions.length
       ? sessions

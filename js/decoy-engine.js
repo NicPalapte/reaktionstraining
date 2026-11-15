@@ -270,7 +270,7 @@ export class DecoyEngine extends CommandEngine {
         this.finish(t, true, null);
         this.rounds += 1;
         this.emit('round', { rounds: this.rounds, issued: this.issued });
-        if (this.state === 'idle') return;
+        if (this.state !== 'command') return; // gestoppt oder Pause
         this.readySince = null;
         this.setState('wait_ready');
         return;

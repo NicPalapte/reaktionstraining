@@ -348,3 +348,26 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 /* Einstellungen als Zahnrad in der Tableiste */
 .tabbar button.tab-icon { flex: 0 0 52px; display: grid; place-items: center; }
 .tabbar .tab-icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Durchgänge im Drill einstellen */
+.stepper { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 12px 0 4px; }
+.stepper[hidden] { display: none; }
+.stepper span { color: var(--muted); font-weight: 600; }
+.stepper b { min-width: 2ch; text-align: center; font-size: 22px; font-variant-numeric: tabular-nums; }
+.stepper button { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: rgba(13, 27, 36, 0.6); color: var(--ink); font-size: 22px; font-weight: 700; cursor: pointer; }
+.stepper button:disabled { opacity: 0.35; }
+
+/* Einzelne Zeiten (Satzende und Verlauf) */
+.trial-list { margin: 4px 0 8px; max-height: 40vh; overflow-y: auto; }
+.trial-list .row, .day-trials .row { grid-template-columns: auto 1fr auto auto; align-items: center; padding: 6px 0; }
+.del-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 16px; cursor: pointer; }
+.del-btn:hover, .del-btn:focus-visible { color: #ff8a80; border-color: #ff8a80; }
+.day > summary { list-style: none; cursor: pointer; }
+.day > summary::-webkit-details-marker { display: none; }
+.day > summary .chev { color: var(--muted); transition: transform .15s; display: inline-block; }
+.day[open] > summary .chev { transform: rotate(90deg); }
+.day > summary.row { grid-template-columns: auto auto 1fr auto; gap: 10px; white-space: nowrap; }
+.day > summary.row > span:nth-child(3) { text-align: right; }
+.trial-list .row > span:nth-child(2), .day-trials .row > span:nth-child(2) { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.day-trials { padding: 0 0 6px 12px; }
+.day:not(:first-child) > summary.row { border-top: 1px solid var(--line); }

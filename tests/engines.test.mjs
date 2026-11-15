@@ -20,7 +20,7 @@ const OUT_M = 2.4; // Hochformat bei 5 m: darüber hinaus ist die Person nicht i
 const TORSO_M = 0.5;
 
 /** Simulierter Lauf im Hochformat: Person verschwindet außerhalb von ±2,4 m aus dem Bild. */
-function runShuffle({ reactS = 0.28, seed = 1, noise = 0.06, fps = FPS, wrongStart = false, a = 9, shortRun = false, inFrame = null, lagMs = 0 }) {
+function runShuffle({ reactS = 0.28, seed = 1, noise = 0.06, fps = FPS, wrongStart = false, a = 9, shortRun = false, inFrame = null, lagMs = 0, ghost = null }) {
   const rand = lcg(seed);
   const events = [];
   const eng = new ShuffleEngine({ rand: lcg(seed + 100), onEvent: (n, d) => events.push([n, d]) });
@@ -41,7 +41,9 @@ function runShuffle({ reactS = 0.28, seed = 1, noise = 0.06, fps = FPS, wrongSta
     const inside = Math.abs(m) <= limit;
     visSince = inside ? (visSince ?? t) : null;
     const seen = inside && t - visSince >= lagMs; // Wiedererkennung am Bildrand braucht lagMs
-    const sample = seen ? { dx: m / TORSO_M + gauss(rand) * noise, r: 1 + gauss(rand) * 0.01 } : null;
+    let sample = seen ? { dx: m / TORSO_M + gauss(rand) * noise, r: 1 + gauss(rand) * 0.01 } : null;
+    // Fehlerkennung (z. B. Person im Hintergrund, Gegenlicht), solange der Läufer außerhalb des Bildes ist
+    if (ghost && traj && !sample) sample = ghost((t - tArrowTrue) / 1000, Math.sign(m), traj) ?? null;
     eng.update(t, sample);
     const arrow = events.find((e) => e[0] === 'arrow');
     if (arrow && !traj) {
@@ -102,6 +104,27 @@ test('Shuffle: spätes Wiedererkennen am Bildrand verfälscht die Zielzeit nicht
   }
 });
 
+test('Shuffle: Fehlerkennungen, während der Läufer auf Seite A außerhalb des Bildes ist, beenden den Lauf nicht', () => {
+  const cases = {
+    // kleine Person im Hintergrund (anderer Platz) in der Mitte
+    hintergrund: (tS, side, traj) => (tS > traj.truth.reactS + 0.6 && tS < traj.truth.turnAS + 0.3 ? { dx: 0.3, r: 0.4 } : null),
+    // einzelnes Geisterbild auf der Gegenseite
+    gegenseite: (tS, side, traj) => (Math.abs(tS - (traj.truth.reactS + 0.8)) < 0.02 ? { dx: -side * 1.5, r: 1 } : null),
+    // zwei Geisterbilder in der Mitte
+    mitte: (tS, side, traj) => (Math.abs(tS - (traj.truth.turnAS - 0.1)) < 0.035 ? { dx: 0, r: 1.05 } : null),
+  };
+  for (const [name, ghost] of Object.entries(cases)) {
+    for (let seed = 1; seed <= 10; seed++) {
+      const { events, traj } = runShuffle({ seed, ghost });
+      const res = events.find((e) => e[0] === 'result');
+      assert.ok(res, `${name}, Seed ${seed}: kein Ergebnis (${JSON.stringify(events.find((e) => e[0] === 'abort'))})`);
+      assert.equal(res[1].valid, true, `${name}, Seed ${seed}: ${res[1].reason}`);
+      const err = Math.abs(res[1].run_ms - traj.truth.runS * 1000);
+      assert.ok(err < 130, `${name}, Seed ${seed}: ${res[1].run_ms} statt ${(traj.truth.runS * 1000).toFixed(0)} ms`);
+    }
+  }
+});
+
 test('Shuffle: beide Richtungen werden gewürfelt und gemessen', () => {
   const seen = new Set();
   for (let seed = 1; seed <= 20; seed++) {
@@ -109,6 +132,21 @@ test('Shuffle: beide Richtungen werden gewürfelt und gemessen', () => {
     if (res) seen.add(res[1].direction);
   }
   assert.deepEqual([...seen].sort(), ['left', 'right']);
+});
+
+test('Shuffle: nie mehr als 2-mal hintereinander dieselbe Seite, im Satz ausgeglichen', () => {
+  for (let seed = 1; seed <= 50; seed++) {
+    const eng = new ShuffleEngine({ rand: lcg(seed) });
+    eng.start();
+    const dirs = [];
+    for (let k = 0; k < 30; k++) {
+      eng.fire(k * 1000);
+      dirs.push(eng.dir);
+      const n = dirs.filter((d) => d === 1).length;
+      assert.ok(Math.abs(2 * n - dirs.length) <= 2, `Seed ${seed}: unausgeglichen ${dirs.join(',')}`);
+    }
+    for (let k = 2; k < dirs.length; k++) assert.ok(!(dirs[k] === dirs[k - 1] && dirs[k] === dirs[k - 2]), `Seed ${seed}: 3× gleich ${dirs.join(',')}`);
+  }
 });
 
 test('Shuffle: falsche Richtung wird als ungültig markiert', () => {
@@ -156,6 +194,37 @@ test('Shuffle: nach dem Ergebnis startet die nächste Runde von selbst', () => {
   assert.equal(eng.state, 'hold');
   for (let k = 0; k < 150; k++, t += 33) eng.update(t, { dx: 0, r: 1 });
   assert.ok(['wait_center', 'countdown'].includes(eng.state));
+});
+
+test('Shuffle: wird im Ergebnis-Handler gestoppt (Satz voll), bleibt die Erkennung aus', () => {
+  let eng;
+  eng = new ShuffleEngine({ rand: () => 0.5, onEvent: (n) => n === 'result' && eng.stop() });
+  eng.start();
+  let t = 0;
+  for (; t < 6000 && eng.state !== 'go'; t += 33) eng.update(t, { dx: 0, r: 1 });
+  eng.finishTrial({ valid: true, reaction_ms: 250, run_ms: 5000 });
+  for (let k = 0; k < 300; k++, t += 33) eng.update(t, { dx: 0, r: 1 });
+  assert.equal(eng.state, 'idle');
+});
+
+test('Shuffle: nach einem gelaufenen Durchgang Pause, überspringbar; nach Fehlstart keine', () => {
+  const run = (res, skipAt = null) => {
+    const eng = new ShuffleEngine({ rand: () => 0.5, params: { restMs: 30000 } });
+    eng.start();
+    let t = 0;
+    for (; t < 6000 && eng.state !== 'go'; t += 33) eng.update(t, { dx: 0, r: 1 });
+    const t0 = t;
+    eng.finishTrial(res);
+    for (; t < t0 + 40000 && eng.state === 'hold'; t += 33) {
+      if (skipAt != null && t - t0 >= skipAt) eng.skipRest();
+      eng.update(t, { dx: 0, r: 1 });
+    }
+    return t - t0;
+  };
+  const rest = run({ valid: true, reaction_ms: 250, run_ms: 5000 });
+  assert.ok(rest >= 30000 && rest < 30200, `Pause ${rest}`);
+  assert.ok(run({ valid: true, reaction_ms: 250, run_ms: 5000 }, 5000) < 5200, 'überspringen');
+  assert.ok(run({ valid: false, reason: 'Falsche Richtung', reaction_ms: null, run_ms: null }) < 4000, 'keine Pause nach Fehlstart');
 });
 
 test('Kalibrierung: Mitte wird freihändig übernommen, Sample in Rumpflängen', () => {

@@ -6,11 +6,15 @@ export const DEFAULT_SETTINGS = {
   rounds: 6, // Durchgänge pro Satz (5-10-5)
   commandRounds: 12, // Befehle pro Satz
   decoyRounds: 16, // Aufgaben pro Satz (Reaktionsdrill)
+  decoyBlock: 5, // Pause nach so vielen Aufgaben (0 = keine)
+  decoyRest: 45, // Länge dieser Pause (s)
   decoyStop: true, // rote Aufgaben: nichts tun
   decoyFlip: true, // Fake-Signale: Grün kippt auf Rot
   decoyBrake: true, // Abbremsen: im Lauf kommt STOPP
   brakeRounds: 5, // Stopp-Drill aus dem Sprint-Block
   spiderRounds: 3, // Durchgänge pro Satz (Spider)
+  rest: 60, // Pause nach jedem Durchgang 5-10-5 (s), 0 = aus
+  spiderRest: 60, // Pause nach jedem Durchgang Spider (s)
   spiderRandom: true, // Reihenfolge der Hütchen zufällig statt klassisch
   splitStep: false, // vor dem Pfeil kommt "Split!"
   splitGap: 0.7, // mittlere Pause zwischen Split und Pfeil (s)

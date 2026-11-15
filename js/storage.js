@@ -9,6 +9,7 @@
 //   listSessions()       -> Einträge, älteste zuerst
 //   putStrength(row)     -> Krafttraining-Eintrag anlegen oder ersetzen (id = fester Schlüssel, siehe strength-plan.js)
 //   listStrength()       -> alle Krafttraining-Einträge
+//   deleteTrial(id)      -> einzelne Zeit löschen (wird für den Cloud-Abgleich vorgemerkt)
 //   deleteAll()
 //   exportCSV()          -> String
 
@@ -44,6 +45,29 @@ const wrap = (req) =>
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+
+// Gelöschte Zeiten merken, damit der Abgleich sie nicht wieder vom Konto zurückholt.
+const DELETED_KEY = 'deleted-trials';
+export function deletedTrialIds() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(DELETED_KEY) || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+function saveDeleted(set) {
+  try {
+    localStorage.setItem(DELETED_KEY, JSON.stringify([...set]));
+  } catch {
+    /* ignorieren */
+  }
+}
+/** Nach erfolgreichem Löschen in der Cloud muss die ID nicht mehr gemerkt werden. */
+export function forgetDeleted(ids) {
+  const set = deletedTrialIds();
+  ids.forEach((id) => set.delete(id));
+  saveDeleted(set);
+}
 
 export class LocalStore {
   constructor() {
@@ -114,6 +138,20 @@ export class LocalStore {
 
   listStrength() {
     return this.all('strength');
+  }
+
+  async deleteTrial(id) {
+    const set = deletedTrialIds();
+    set.add(id);
+    saveDeleted(set);
+    this.memory.trials = this.memory.trials.filter((r) => r.id !== id);
+    if (this.useMemory) return;
+    try {
+      const db = await this.db();
+      await wrap(db.transaction('trials', 'readwrite').objectStore('trials').delete(id));
+    } catch (e) {
+      /* nichts zu löschen */
+    }
   }
 
   async deleteAll() {

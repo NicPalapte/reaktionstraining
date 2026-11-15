@@ -3,7 +3,7 @@
 // hochgeladen und fehlende Zeiten von anderen Geräten geladen (Abgleich über die Zeilen-ID).
 
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
-import { store } from './storage.js';
+import { store, deletedTrialIds, forgetDeleted } from './storage.js';
 
 const SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
 const TRIAL_COLS = ['id', 'created_at', 'exercise', 'session_id', 'direction', 'reaction_ms', 'run_ms', 'total_ms', 'split_a_ms', 'split_b_ms', 'valid', 'reason'];
@@ -122,7 +122,18 @@ class Cloud {
         ['trials', TRIAL_COLS, () => store.listTrials(), (r) => store.put('trials', r)],
         ['sessions', SESSION_COLS, () => store.listSessions(), (r) => store.put('sessions', r)],
       ]) {
-        const remote = await this.fetchAll(table, cols.join(','));
+        let remote = await this.fetchAll(table, cols.join(','));
+        if (table === 'trials') {
+          // Auf diesem Gerät gelöschte Zeiten nicht zurückholen, sondern auch im Konto löschen
+          const gone = deletedTrialIds();
+          const stale = remote.filter((r) => gone.has(r.id)).map((r) => r.id);
+          if (stale.length) {
+            const { error } = await this.sb.from('trials').delete().in('id', stale);
+            if (error) throw error;
+            forgetDeleted(stale);
+          }
+          remote = remote.filter((r) => !gone.has(r.id));
+        }
         const remoteIds = new Set(remote.map((r) => r.id));
         const mine = await local();
         const localIds = new Set(mine.map((r) => r.id));
@@ -183,6 +194,17 @@ class Cloud {
     }
     if (remote.some((r) => !mine.has(r.id) || ts(mine.get(r.id).updated_at) < ts(r.updated_at))) this.emit();
     return true;
+  }
+
+  /** Einzelne Zeit auch im Konto löschen. Klappt das nicht (offline), holt der nächste Abgleich es nach. */
+  async deleteTrial(id) {
+    if (!this.user || !navigator.onLine) return;
+    try {
+      const { error } = await this.sb.from('trials').delete().eq('id', id);
+      if (!error) forgetDeleted([id]);
+    } catch (e) {
+      console.warn('Löschen im Konto fehlgeschlagen', e);
+    }
   }
 
   /** "Alles löschen" gilt auch für die Cloud, sonst käme alles beim nächsten Abgleich zurück. */
