@@ -1,449 +1,152 @@
-// Krafttraining: Wintertraining 26/27 als Daten, dazu reine Hilfsfunktionen (ohne DOM, testbar).
-// Einheiten stehen bewusst ohne Wochentag (A, B, C, Sprint, Kraft 1/2, Erhalt 1/2).
-// Physio und Dehnen an Nicht-Gym-Tagen ist eine eigene Kategorie (ROUTINE) mit Tagen.
-// Übungs-IDs verbinden dieselbe Übung über Phasen hinweg ("Zuletzt"-Hinweis, Verlauf).
-// Beschreibungen stehen in der Bibliothek (library.js); item.lib verweist dort auf eine andere ID.
+// Krafttraining: der Trainingsplan ist kein Code, sondern ein Dokument je Nutzer (gespeichert als Zeile "plan",
+// Import über Einstellungen → Krafttraining). Hier: Plan prüfen und laden, dazu reine Hilfsfunktionen (ohne DOM, testbar).
+//
+// Plan-Datei (format "tennis-plan", version 1):
+//   { name, start: "JJJJ-MM-TT" (Montag von W1), info: [[k, v]], warmup: [Übung], cooldown: [Übung],
+//     routine: [{ title, target, days: [1 = Mo … 7 = So], items: [Übung] }], routineNotes: [Text],
+//     phases: [{ id, name, weeks: [n], dl, goal, details: [[k, v]], weekExtra, check?, routineNotes?,
+//                units: [{ id, title, name, gym, intro?, warmup?: [Übung], items: [Übung], block?: [Übung] }] }] }
+//   Übung: { ex: Bibliotheks-ID, target?, name?, id?, from? }. Name, Kamera-Drill und Zeitmessung kommen aus der
+//   Bibliothek; name überschreibt nur die Anzeige. id trennt Varianten derselben Übung (z. B. Kontrastsprung), sonst = ex.
+//   Einträge laufen unter Phase|Einheit|id|Woche, so passen "Zuletzt" und Verlauf über Phasen hinweg.
+// Gym-Einheiten bekommen warmup und cooldown, Sprint-Einheiten ihr eigenes warmup.
 
 import { LIB, libOf } from './library.js';
 
-const x =(id, name, target, opts = {}) => ({ id, name, target, ...opts });
+export const PLAN_ID = 'plan';
 
-const SB = [
-  x('straight-arm', 'Straight-Arm Pulldown', '3 × 12, Schultern runter'),
-  x('y-raise', 'Y-Raise Bauchlage/Schrägbank', '3 × 10–12 leicht, Schulterblatt unten/hinten'),
-];
+// Aktueller Plan. Live-Bindings: wer importiert, sieht nach setPlan() den neuen Stand.
+export let PLAN = null; // geprüftes Dokument, wie gespeichert
+export let PLAN_NAME = '';
+export let PHASES = [];
+export let WARMUP = [];
+export let COOLDOWN = [];
+export let ROUTINE = [];
+export let ROUTINE_NOTES = [];
+export let ROUTINE_PHASE = {};
+export let INFO = [];
+export let LAST_WEEK = 1;
 
-// Gym-Tage: Tennisball + Außenrotation als Aufwärmen vorher, Seitlage + Dehnen nach der Einheit.
-export const WARMUP = [
-  { id: 'tennisball', name: 'Tennisball Schulterblatt (Wand/Boden)', target: '1–2 min/Seite, harte Punkte 20 s halten' },
-  { id: 'aussenrot', name: 'Außenrotation beidarmig Band', target: 'Ellb am Körper, nach außen ziehen, 3 × 15' },
-];
-export const COOLDOWN = [
-  { id: 'seitlage', name: 'Seitlage-Dehnung', target: 'Arm gestreckt nach hinten oben, 2 × 40 s/Seite' },
-  { id: 'brust', name: 'Brust Türrahmen', target: '1 × 40 s/Seite' },
-  { id: 'unterarm', lib: 'unterarm-dehnen', name: 'Unterarm', target: '1 × 40 s/Seite' },
-  { id: 'trizeps-dehnen', name: 'Trizeps', target: '1 × 40 s/Seite, nur schmerzfrei' },
-];
+const str = (v, max = 300) => (v == null ? '' : String(v).slice(0, max));
+const pairs = (v) => (Array.isArray(v) ? v.slice(0, 40).filter((p) => Array.isArray(p)).map(([k, x]) => [str(k, 80), str(x)]) : []);
+const texts = (v) => (Array.isArray(v) ? v.slice(0, 40).map((t) => str(t)) : []);
 
-// Sprint-Einheit: Aufwärmen als Liste, Übungen optional mit App-Drill (app). Die Ausführung steht in der Bibliothek (library.js):
-// shuffle = 5-10-5 mit Kamera, spider = Spider-Drill mit Kamera, brake = Reaktionsdrill nur Abbremsen, decoy = Reaktionsdrill.
-export const SPRINT_WARMUP = [
-  { id: 'sp-einlaufen', name: 'Einlaufen locker', target: '5 min' },
-  { id: 'sp-abc', name: 'Lauf-ABC: Skippings, Anfersen, Hopserlauf, Seitgalopp', target: 'je 2 × 15 m' },
-  { id: 'sp-mobil', name: 'Beinpendel und Ausfallschritt mit Rotation', target: 'je 10/Seite' },
-  { id: 'sp-steiger', name: 'Steigerungsläufe', target: '2–3 × 30 m auf 80–90 %' },
-];
-const sprint = {
-  s20: (target) => x('sprint-20m', '20-m-Sprint', target, { time: true, ph: '3,20 s' }),
-  shuttle: (target) => x('shuttle', '5-10-5 Shuttle', target, { shuttle: true, time: true, app: 'shuffle' }),
-  spider: (target) => x('spider', 'Spider-Drill', target, { time: true, app: 'spider', ph: '12,40 s' }),
-  brake: (target) => x('abbremsen', 'Abbremsen (Stopp-Drill)', target, { app: 'brake', ph: 'Ø 0,55 s' }),
-  decoy: (target) => x('reaktion', 'Reaktionsdrill', target, { app: 'decoy', ph: '15/16 richtig' }),
-};
+/** Übung aus der Datei → Eintrag im Plan (mit Feldern aus der Bibliothek). */
+export function planItem(raw) {
+  const lib = LIB.get(raw.ex);
+  const id = str(raw.id || raw.ex, 60);
+  const { app, time, shuttle, ph } = lib;
+  return {
+    id, ...(id !== lib.id ? { lib: lib.id } : {}),
+    name: str(raw.name, 120) || lib.name, target: str(raw.target, 200),
+    ...(app ? { app } : {}), ...(time ? { time } : {}), ...(shuttle ? { shuttle } : {}), ...(ph ? { ph } : {}),
+    ...(Number(raw.from) > 0 ? { from: Number(raw.from) } : {}),
+  };
+}
 
-const A = 'Beine & Rumpf';
-const B = 'Oberkörper + Trizeps';
-const C = 'Hinge & Ganzkörper + Trizeps';
+/**
+ * Plan-Datei prüfen.
+ * @returns {string[]} Fehler (leer = in Ordnung)
+ */
+export function validatePlan(doc) {
+  const err = [];
+  if (!doc || typeof doc !== 'object' || doc.format !== 'tennis-plan') return ['Kein Trainingsplan (format "tennis-plan" fehlt).'];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(doc.start ?? '') || Number.isNaN(Date.parse(doc.start))) err.push('start fehlt oder ist kein Datum (JJJJ-MM-TT).');
+  if (!Array.isArray(doc.phases) || !doc.phases.length) return [...err, 'Der Plan hat keine Phasen.'];
+  const unknown = new Set();
+  const items = (list, where) => {
+    if (list == null) return;
+    if (!Array.isArray(list)) return err.push(`${where}: keine Liste.`);
+    for (const it of list) if (!it || !LIB.has(it.ex)) unknown.add(it?.ex ?? '(leer)');
+  };
+  items(doc.warmup, 'warmup');
+  items(doc.cooldown, 'cooldown');
+  for (const g of doc.routine ?? []) items(g.items, `routine ${g.title}`);
+  const phaseIds = new Set();
+  const weeks = new Set();
+  for (const p of doc.phases) {
+    const pid = str(p?.id, 20);
+    if (!pid || phaseIds.has(pid)) err.push(`Phase "${pid}": ID fehlt oder doppelt.`);
+    phaseIds.add(pid);
+    if (!Array.isArray(p.weeks) || !p.weeks.length || !p.weeks.every((w) => Number.isInteger(w) && w >= 1 && w <= 104)) err.push(`Phase ${pid}: weeks muss Wochen 1–104 enthalten.`);
+    else for (const w of p.weeks) {
+      if (weeks.has(w)) err.push(`W${w} steht in mehreren Phasen.`);
+      weeks.add(w);
+    }
+    if (!Array.isArray(p.units) || !p.units.length) {
+      err.push(`Phase ${pid}: keine Einheiten.`);
+      continue;
+    }
+    const unitIds = new Set();
+    for (const u of p.units) {
+      const uid = str(u?.id, 20);
+      if (!uid || unitIds.has(uid)) err.push(`Phase ${pid}: Einheit "${uid}" ohne ID oder doppelt.`);
+      unitIds.add(uid);
+      items(u.items, `${pid} ${uid}`);
+      items(u.block, `${pid} ${uid} block`);
+      items(u.warmup, `${pid} ${uid} warmup`);
+      const ids = [...(u.items ?? []), ...(u.block ?? [])].map((it) => it?.id || it?.ex);
+      const dup = ids.filter((id, i) => ids.indexOf(id) !== i);
+      if (dup.length) err.push(`${pid} ${uid}: ${[...new Set(dup)].join(', ')} doppelt (eigene id vergeben).`);
+    }
+  }
+  if (unknown.size) err.push(`Nicht in der Übungsbibliothek: ${[...unknown].join(', ')}.`);
+  return err;
+}
 
-export const PHASES = [
-  {
-    id: 'P2',
-    name: 'Aufbau',
-    weeks: [5, 6, 7, 8],
-    dl: 8,
-    goal: 'Volumen aufbauen: saubere Wiederholungen im mittleren Bereich',
-    details: [
-      ['Hauptübungen', '4 × 8–10 @ RPE 7–8, Pause 2 min'],
-      ['Nebenübungen', '3 × 8–12'],
-      ['Sprünge', 'Boxsprung höher als in P1, Pogo seitlich, Skater und Standweitsprung'],
-      ['Ellbogen', 'E2 Pushdown 3-0-3, sonst E1 Iso. Weiter zu E3 erst nach 3 Wo ohne Folgetag'],
-      ['Ausdauer', 'Spinning oder Lauf locker, 40–50 min'],
-      ['Sprint', 'Aufwärmen, 20 m 6–8 ×, 5-10-5 4–6 ×, Spider 3 ×, Abbremsen 5 ×, bester Shuttle notieren'],
-      ['Deload W8', 'Gleiche Gewichte, ~40 % weniger Sätze, Sprünge halbiert'],
-    ],
-    weekExtra: 'Ausdauer',
-    units: [
-      {
-        id: 'A', title: 'A', name: A, gym: true,
-        items: [
-          x('boxsprung', 'Boxsprung', '3 × 5, höher als P1'),
-          x('pogo', 'Pogo seitlich', '2 × 10'),
-          x('kniebeuge', 'Kniebeuge', '4 × 8–10'),
-          x('bss', 'Bulgarian Split Squat', '3 × 8–10/Bein'),
-          x('beinbeuger', 'Beinbeuger', '3 × 8–12'),
-          x('wadenheben', 'Wadenheben', '3 × 12–15'),
-          x('pallof', 'Pallof Press', '3 × 10/Seite'),
-          x('seitstuetz', 'Seitstütz + Bein', '3 × 30–40 s'),
-        ],
-      },
-      {
-        id: 'B', title: 'B', name: B, gym: true,
-        items: [
-          x('klimmzug', 'Klimmzug/Latzug', '4 × 6–10'),
-          x('rudern', 'Rudern', '4 × 8–12'),
-          x('landmine', 'Landmine Press', '3 × 8–12 langsam'),
-          x('facepulls', 'Face Pulls', '3 × 12–15'),
-          x('trizeps-pushdown', 'Trizeps E2 Pushdown', '3–4 × 8–10, 3-0-3'),
-          x('deadbug', 'Deadbug', '3 × 10/Seite'),
-        ],
-      },
-      {
-        id: 'C', title: 'C', name: C, gym: true,
-        items: [
-          x('skater', 'Skater-Sprung', '3 × 5/Seite'),
-          x('standweitsprung', 'Standweitsprung', '3 × 3'),
-          x('kreuzheben', 'Kreuzheben/RDL', '4 × 8–10'),
-          x('hipthrust', 'Hip Thrust', '3 × 8–12'),
-          x('einbein-kh', 'Einbein. Kreuzheben', '3 × 8/Bein'),
-          x('khbank', 'KH-Bank/Floor Press', '3 × 8–12 langsam'),
-          x('trizeps-pushdown', 'Trizeps E2 Pushdown', '3 × 8–10, 3-0-3'),
-          x('unterarm', 'Unterarm/Griff', '3 × 15'),
-        ],
-      },
-      {
-        id: 'S', title: 'Sprint', name: '', gym: false,
-        warmup: SPRINT_WARMUP,
-        intro: 'Volle Pausen, jede Wiederholung mit voller Spannung. Deload W8: halber Umfang.',
-        items: [
-          sprint.s20('6–8 ×, Pause 90 s'),
-          sprint.shuttle('4–6 ×, Pause 60–90 s'),
-          sprint.spider('3 ×, Pause 2 min'),
-          sprint.brake('5 ×'),
-        ],
-      },
-    ],
-  },
-  {
-    id: 'P3',
-    name: 'Maximalkraft',
-    weeks: [9, 10, 11, 12, 13],
-    dl: 13,
-    goal: 'Schwer und explosiv: Maximalkraft mit Kontrastsprüngen',
-    details: [
-      ['Beine/Zug', '4–5 × 4–6 @ RPE 8, Pause 3 min'],
-      ['Drücken/Trizeps', '8–12 Wdh, ab W11 ggf. 6–8'],
-      ['Kontrast', 'Nach jedem schweren Satz direkt 3 Sprünge (Sprungkniebeuge o. Last bzw. Standweitsprung)'],
-      ['Ellbogen', 'E3 Überkopf-Strecken, sonst Pushdown. E4 Medball-Würfe ab W12, wenn 2 Wo schmerzfrei'],
-      ['Ausdauer', 'Lauf 45–60 min'],
-      ['Sprint', 'Wie P2 plus Reaktionsdrill 4–6 ×. Bei Glätte Halle, Schlitten oder Skierg. W13 halb'],
-      ['Deload W13', 'Gleiche Gewichte, ~40 % weniger Sätze, Sprünge halbiert'],
-    ],
-    weekExtra: 'Ausdauer',
-    units: [
-      {
-        id: 'A', title: 'A', name: A, gym: true,
-        items: [
-          x('einbein-huepfen-vor', 'Einbein. Hüpfen vorwärts', '3 × 4/Bein'),
-          x('kniebeuge', 'Kniebeuge', '4–5 × 4–6'),
-          x('sprungkniebeuge-kontrast', '+ Sprungkniebeuge o. Last', '3 nach jedem Satz', { lib: 'sprungkniebeuge' }),
-          x('bss', 'Bulgarian Split Squat', '3 × 6–8/Bein'),
-          x('beinbeuger', 'Beinbeuger', '3 × 6–10'),
-          x('wadenheben', 'Wadenheben', '3 × 10–12 schwer'),
-          x('pallof', 'Pallof Press', '3 × 10/Seite'),
-          x('seitstuetz', 'Seitstütz + Bein', '3 × 40 s'),
-        ],
-      },
-      {
-        id: 'B', title: 'B', name: B, gym: true,
-        items: [
-          x('klimmzug', 'Klimmzug (+Gewicht)', '4 × 4–6'),
-          x('rudern', 'Rudern', '4 × 6–8'),
-          x('landmine', 'Landmine Press', '3 × 8–12'),
-          x('facepulls', 'Face Pulls', '3 × 12–15'),
-          x('trizeps-pushdown', 'Trizeps E2 Pushdown', '4 × 8–10, 3-0-3'),
-          x('deadbug', 'Deadbug', '3 × 10/Seite'),
-        ],
-      },
-      {
-        id: 'C', title: 'C', name: C, gym: true,
-        items: [
-          x('einbein-huepfen-seit', 'Einbein. Hüpfen seitlich', '3 × 4/Bein'),
-          x('kreuzheben', 'Kreuzheben', '4–5 × 4–6'),
-          x('standweitsprung-kontrast', '+ Standweitsprung', '3 nach jedem Satz', { lib: 'standweitsprung' }),
-          x('hipthrust', 'Hip Thrust', '3 × 6–10'),
-          x('einbein-kh', 'Einbein. Kreuzheben', '3 × 8/Bein'),
-          x('khbank', 'KH-Bank/Floor Press', '3 × 8–12'),
-          x('trizeps-ueberkopf', 'Trizeps E3 Überkopf', '3 × 8–10 (sonst Pushdown)'),
-          x('medball-rotation', 'Medball Rotation', '4 × 6/Seite'),
-          x('medball-ueberkopf', 'E4 Medball Überkopf', '3 × 6, 2 kg, ab W12', { from: 12 }),
-          x('unterarm', 'Unterarm/Griff', '3 × 12–15'),
-        ],
-      },
-      {
-        id: 'S', title: 'Sprint', name: '', gym: false,
-        warmup: SPRINT_WARMUP,
-        intro: 'Wie P2 plus Reaktionsdrill. Bei Glätte: Halle, Schlitten oder Skierg. W13: halber Umfang.',
-        items: [
-          sprint.s20('6–8 ×, Pause 90 s'),
-          sprint.shuttle('4–6 ×, Pause 60–90 s'),
-          sprint.spider('3 ×, Pause 2 min'),
-          sprint.brake('5 ×'),
-          sprint.decoy('4–6 Sätze'),
-        ],
-      },
-    ],
-  },
-  {
-    id: 'P4',
-    name: 'Übertrag',
-    weeks: [14, 15],
-    dl: null,
-    goal: 'Kraft halten, Schnelligkeit auf den Platz übertragen',
-    details: [
-      ['Kraft', 'Wenige schwere Sätze: Kniebeuge und Kreuzheben 3 × 3–5, Rest 2–3 Sätze'],
-      ['Sprünge', 'Frisch vor der Hauptübung: Sprungkniebeuge mit 20–30 % Last, reaktive Niedersprünge, Boxsprung max'],
-      ['Ellbogen', 'E4: Medball Überkopf 3 kg, dann einarmig. Aufschläge ab W16, wenn 2 Wo Würfe ok'],
-      ['Ausdauer', 'Lauf 30–40 min'],
-      ['Sprint', '35 min: 6 × 10-m-Start, Reaktion 6 ×, Seil einbeinig, Abbremsen 5 ×'],
-    ],
-    weekExtra: 'Ausdauer',
-    units: [
-      {
-        id: 'A', title: 'A', name: A, gym: true,
-        items: [
-          x('sprungkniebeuge', 'Sprungkniebeuge', '4 × 4, 20–30 % Last'),
-          x('niedersprung', 'Niedersprung 30 cm', '3 × 4 reaktiv'),
-          x('kniebeuge', 'Kniebeuge', '3 × 3–5'),
-          x('bss', 'Bulgarian Split Squat', '2 × 8'),
-          x('beinbeuger', 'Beinbeuger', '2 × 8'),
-          x('pallof', 'Pallof Press', '2 × 10'),
-        ],
-      },
-      {
-        id: 'B', title: 'B', name: B, gym: true,
-        items: [
-          x('klimmzug', 'Klimmzug', '3 × 5–6'),
-          x('rudern', 'Rudern', '3 × 8'),
-          x('landmine', 'Landmine Press', '3 × 8'),
-          x('facepulls', 'Face Pulls', '2 × 15'),
-          x('trizeps-ueberkopf', 'Trizeps E3 Überkopf', '3 × 8'),
-          x('medball-ueberkopf', 'E4 Medball Überkopf', '4 × 5, 3 kg → einarmig'),
-        ],
-      },
-      {
-        id: 'C', title: 'C', name: C, gym: true,
-        items: [
-          x('seitsprung-rw', 'Seitsprung Richtungswechsel', '3 × 4/Seite'),
-          x('boxsprung-max', 'Boxsprung max', '3 × 4', { lib: 'boxsprung' }),
-          x('kreuzheben', 'Kreuzheben', '3 × 3–5'),
-          x('hipthrust', 'Hip Thrust', '2 × 8'),
-          x('khbank', 'KH-Bank/Floor Press', '3 × 8'),
-          x('medball-rotation', 'Medball Rotation', '4 × 6/Seite'),
-          x('unterarm', 'Unterarm/Griff', '2 × 15'),
-        ],
-      },
-      {
-        id: 'S', title: 'Sprint', name: '35 min', gym: false,
-        warmup: SPRINT_WARMUP,
-        intro: 'Kurz und schnell: Qualität vor Umfang.',
-        items: [
-          x('start-10m', '10-m-Start', '6 ×, Pause 60 s', { time: true, ph: '1,90 s' }),
-          sprint.decoy('6 Sätze'),
-          x('seil-einbein', 'Seilspringen einbeinig', 'kurze Serien je Bein'),
-          sprint.brake('5 ×'),
-          sprint.shuttle('optional 1–2 × zur Kontrolle'),
-        ],
-      },
-    ],
-  },
-  {
-    id: 'P5',
-    name: 'Rückkehr',
-    weeks: [16, 17, 18, 19],
-    dl: null,
-    goal: 'Zurück auf den Platz: zwei Krafteinheiten, Tennis, Aufschläge stufenweise',
-    details: [
-      ['Woche', '2 Krafteinheiten und 2 × Tennis. Kein Sprint, dafür 10 min Beinarbeit vorm Tennis'],
-      ['Vorm Tennis', 'Trizeps-Iso 2 × 40 s'],
-      ['Aufschläge', 'W16 Schatten + 20 @ 50 % · W17 30–40 @ 60–70 % · W18 40–50 @ 70–80 % + Kick · W19 50–60, volle Serien bis 10'],
-      ['Notieren', 'Pro Woche Aufschläge und wie der Arm am Folgetag war'],
-      ['Ellbogen', 'Folgetag schlechter → eine Stufe zurück'],
-    ],
-    weekExtra: 'Aufschläge/Folgetag',
-    units: [
-      {
-        id: 'K1', title: 'Kraft 1', name: '', gym: true,
-        items: [
-          x('sprungkniebeuge', 'Sprungkniebeuge', '3 × 4, 20–30 %'),
-          x('kniebeuge', 'Kniebeuge', '3 × 3–5'),
-          x('rudern', 'Rudern', '3 × 8'),
-          x('landmine', 'Landmine Press', '3 × 8'),
-          x('trizeps-ueberkopf', 'Trizeps Überkopf', '3 × 8–10'),
-          x('pallof', 'Pallof Press', '3 × 10'),
-        ],
-      },
-      {
-        id: 'K2', title: 'Kraft 2', name: '', gym: true,
-        items: [
-          x('seitsprung-rw', 'Seitsprung Richtungswechsel', '3 × 4/Seite'),
-          x('kreuzheben', 'Kreuzheben', '3 × 3–5'),
-          x('medball-ueberkopf', 'Medball Überkopf einarmig', '4 × 5'),
-          x('medball-rotation', 'Medball Rotation', '3 × 6/Seite'),
-          x('klimmzug', 'Klimmzug', '3 × 6–8'),
-          x('hipthrust', 'Hip Thrust', '3 × 8'),
-          x('facepulls', 'Face Pulls', '3 × 15'),
-        ],
-      },
-    ],
-  },
-  {
-    id: 'P6',
-    name: 'Turnierprep',
-    weeks: [20, 21, 22],
-    dl: null,
-    goal: 'Kraft erhalten, Matchhärte aufbauen, frisch ins Turnier',
-    details: [
-      ['Woche', '2 kurze Erhalt-Einheiten, 2 × Tennis und ein Match'],
-      ['Matches', 'W20 1 Satz · W21 2 Sätze · W22 Taper (weniger Umfang, frisch bleiben)'],
-      ['Kraft', '2–3 Sätze mit wenigen Wiederholungen'],
-      ['Turnier', 'Nur wenn alle drei Kriterien unten erfüllt sind'],
-    ],
-    check: ['2 Wo volle Aufschläge ok', '2-Satz-Match ok', 'Ellb ≤1/10'],
-    weekExtra: 'Aufschläge/Folgetag',
-    units: [
-      {
-        id: 'E1', title: 'Erhalt 1', name: '', gym: true,
-        items: [
-          x('sprungkniebeuge', 'Sprungkniebeuge', '3 × 4'),
-          x('kniebeuge', 'Kniebeuge', '2–3 × 3'),
-          x('rudern', 'Rudern', '2 × 8'),
-          x('trizeps-ueberkopf', 'Trizeps Überkopf', '2 × 10'),
-          x('pallof', 'Pallof Press', '2 × 10'),
-        ],
-      },
-      {
-        id: 'E2', title: 'Erhalt 2', name: '', gym: true,
-        items: [
-          x('skater-reaktiv', 'Skater reaktiv', '2 × 4/Seite', { lib: 'skater' }),
-          x('kreuzheben', 'Kreuzheben', '2–3 × 3'),
-          x('medball-ueberkopf', 'Medball Überkopf einarmig', '3 × 5'),
-          x('klimmzug', 'Klimmzug', '2 × 6'),
-          x('facepulls', 'Face Pulls', '2 × 15'),
-          x('seitstuetz', 'Seitstütz', '2 × 30 s'),
-        ],
-      },
-    ],
-  },
-];
+/** Geprüftes Dokument in die Form für App und Hilfsfunktionen bringen (ohne Seiteneffekte). */
+export function normalizePlan(doc) {
+  const items = (l) => (Array.isArray(l) ? l.map(planItem) : []);
+  const phases = doc.phases.map((p) => ({
+    id: str(p.id, 20), name: str(p.name, 80), weeks: [...p.weeks].sort((a, b) => a - b), dl: Number(p.dl) || null,
+    goal: str(p.goal), details: pairs(p.details), weekExtra: str(p.weekExtra, 80) || 'Notiz',
+    ...(Array.isArray(p.check) && p.check.length ? { check: texts(p.check) } : {}),
+    units: p.units.map((u) => ({
+      id: str(u.id, 20), title: str(u.title, 40) || str(u.id, 20), name: str(u.name, 80), gym: !!u.gym,
+      ...(u.intro ? { intro: str(u.intro) } : {}),
+      ...(u.warmup?.length ? { warmup: items(u.warmup) } : {}),
+      items: items(u.items),
+      ...(u.block?.length ? { block: items(u.block) } : {}),
+    })),
+  }));
+  phases.sort((a, b) => a.weeks[0] - b.weeks[0]);
+  const [y, m, d] = doc.start.split('-').map(Number);
+  return {
+    name: str(doc.name, 80), start: Date.UTC(y, m - 1, d), phases,
+    warmup: items(doc.warmup), cooldown: items(doc.cooldown),
+    routine: (doc.routine ?? []).map((g) => ({ title: str(g.title, 80), target: str(g.target), days: (g.days ?? []).filter((x) => x >= 1 && x <= 7), items: items(g.items) })),
+    routineNotes: texts(doc.routineNotes),
+    routinePhase: Object.fromEntries(doc.phases.filter((p) => p.routineNotes?.length).map((p) => [str(p.id, 20), texts(p.routineNotes)])),
+    info: pairs(doc.info),
+  };
+}
 
-// P1 (W1–4) liegt vor dem Start der App. Eigene Werte stehen nicht im Code (Repo ist öffentlich),
-// sondern kommen über Einstellungen → Krafttraining → Importieren in die eigenen Daten.
-PHASES.unshift({
-  id: 'P1',
-  name: 'Grundlage',
-  weeks: [1, 2, 3, 4],
-  dl: null,
-  goal: 'Grundlage: Technik, Landungen, Ellbogen schonen',
-  details: [
-    ['Werte', 'Eigene Werte aus W1–4 über Einstellungen → Krafttraining importieren oder direkt eintragen'],
-    ['Sprünge', 'Niedrige Box und Hüpfer mit Landung halten'],
-    ['Ellbogen', 'E1 Isometrie Kabel 90°. Weiter zu E2 nach 2 Wo ≤2/10 + Physio'],
-  ],
-  weekExtra: 'Ausdauer',
-  units: [
-    {
-      id: 'A', title: 'A', name: A, gym: true,
-      items: [
-        x('boxsprung', 'Sprung auf niedrige Box, Landung 2 s halten', ''),
-        x('pogo', 'Pogo-Sprünge (Fußgelenk, kurzer Kontakt)', ''),
-        x('kniebeuge', 'Kniebeuge (Back Squat)', ''),
-        x('bss', 'Bulgarian Split Squat', ''),
-        x('beinbeuger', 'Beinbeuger (Leg Curl / Nordic)', ''),
-        x('wadenheben', 'Wadenheben stehend', ''),
-        x('pallof', 'Pallof Press', ''),
-        x('seitstuetz', 'Seitstütz mit Beinheben', ''),
-      ],
-    },
-    {
-      id: 'B', title: 'B', name: B, gym: true,
-      items: [
-        x('klimmzug', 'Latzug (oder Klimmzug)', ''),
-        x('landmine', 'Landmine Press einarmig', ''),
-        x('facepulls', 'Face Pulls', ''),
-        x('trizeps-iso', 'Trizeps E1: Isometrie Kabel 90°', ''),
-        x('deadbug', 'Deadbug', ''),
-      ],
-    },
-    {
-      id: 'C', title: 'C', name: C, gym: true,
-      items: [
-        x('standweitsprung', 'Standweitsprung, Landung halten', ''),
-        x('einbein-huepfer', 'Einbeiniger Hüpfer auf der Stelle, Landung halten', ''),
-        x('kreuzheben', 'Rumänisches Kreuzheben', ''),
-        x('hipthrust', 'Hip Thrust', ''),
-        x('einbein-kh', 'Einbeiniges Kreuzheben', ''),
-        x('khbank', 'KH-Bankdrücken oder Floor Press', ''),
-        x('trizeps-iso', 'Trizeps E1: Isometrie Kabel 90°', ''),
-        x('unterarm', 'Unterarm: Handgelenk-Strecker/-Beuger', ''),
-      ],
-    },
-    {
-      id: 'S', title: 'Sprint', name: '', gym: false,
-      items: [x('shuttle', 'Sprint: bester Shuttle-Wert', 's', { shuttle: true })],
-    },
-  ],
-});
+/** Plan setzen (null = kein Plan). Wirft bei ungültigem Dokument. */
+export function setPlan(doc) {
+  if (doc) {
+    const err = validatePlan(doc);
+    if (err.length) throw new Error(err.join(' '));
+  }
+  const n = doc ? normalizePlan(doc) : null;
+  PLAN = doc ?? null;
+  PLAN_NAME = n?.name ?? '';
+  PHASES = n?.phases ?? [];
+  WARMUP = n?.warmup ?? [];
+  COOLDOWN = n?.cooldown ?? [];
+  ROUTINE = n?.routine ?? [];
+  ROUTINE_NOTES = n?.routineNotes ?? [];
+  ROUTINE_PHASE = n?.routinePhase ?? {};
+  INFO = n?.info ?? [];
+  LAST_WEEK = Math.max(1, ...PHASES.flatMap((p) => p.weeks));
+  W1 = n?.start ?? Date.UTC(2026, 8, 28);
+}
 
-// Schulterblatt-Block (Physio): am Ende jeder Gym-Einheit ab P2.
-for (const p of PHASES) if (p.id !== 'P1') for (const u of p.units) if (u.gym) u.block = SB;
-
-/** Physio und Dehnen an den übrigen Tagen. Tage: 1 = Mo … 7 = So. */
-export const ROUTINE = [
-  {
-    title: 'Täglich · Physio',
-    target: '6 min, Pflicht',
-    days: [1, 2, 3, 4, 5, 6, 7],
-    items: [
-      { id: 'seitlage', name: 'Seitlage-Dehnung', target: 'Arm gestreckt nach hinten oben, 2 × 40 s/Seite' },
-      { id: 'tennisball', name: 'Tennisball Schulterblatt (Wand/Boden)', target: '1–2 min/Seite, harte Punkte 20 s halten' },
-      { id: 'aussenrot', name: 'Außenrotation beidarmig Band', target: 'Ellb am Körper, nach außen ziehen, 3 × 15' },
-    ],
-  },
-  {
-    title: 'Trizeps-Iso',
-    target: '',
-    days: [1, 2, 4, 6],
-    items: [{ id: 'trizeps-iso', name: 'Trizeps-Iso Band 90°', target: '3 × 40 s' }],
-  },
-  {
-    title: 'Dehnen',
-    target: 'je 1 × 40 s/Seite, ca. 3 min',
-    days: [2, 4, 6],
-    items: [
-      { id: 'hueftbeuger', name: 'Hüftbeuger', target: '' },
-      { id: 'beinbeuger-dehnen', name: 'Beinbeuger', target: '' },
-      { id: 'hocke', name: 'Tiefe Hocke', target: '' },
-    ],
-  },
-];
-
-export const ROUTINE_NOTES = [
-  'An Gym-Tagen ist das im Workout: Tennisball und Außenrotation als Aufwärmen, Seitlage und Dehnen (Brust, Unterarm, Trizeps) nach der Einheit.',
-  'Stress-Tag: nur den Physio-Block.',
-];
-
-/** Zusätze je Phase für Physio & Dehnen. */
-export const ROUTINE_PHASE = {
-  P5: ['Vorm Tennis: Trizeps-Iso 2 × 40 s', 'Schulterblatt-Block zum 3. Mal: Sa morgens mit Band'],
-  P6: ['Schulterblatt-Block zum 3. Mal: Fr morgens mit Band'],
-};
-
-export const INFO = [
-  ['Ellb-Ampel', 'Schmerz ≤3/10 ok · Folgetag schlechter → Arm 1 Stufe zurück'],
-  ['DL = Deload', 'Gleiche Gewichte, ~40 % weniger Sätze, Sprünge halbiert'],
-  ['E1 → E2', 'Iso → Pushdown 3-0-3 (2 Wo ≤2/10 + Physio)'],
-  ['E2 → E3', 'Überkopf-Strecken (3 Wo ohne Folgetag)'],
-  ['E3 → E4', 'Medball-Würfe (2 Wo schmerzfrei, ab W12)'],
-  ['E4 → Aufschläge', 'ab W16 (2 Wo Würfe ok)'],
-  ['Lauf', 'P2 40–50 · P3 45–60 · P4 30–40 min'],
-];
-
-// ---------- Kalender: W1 beginnt am Montag, 28.09.2026 ----------
-const W1 = Date.UTC(2026, 8, 28);
+// ---------- Kalender: W1 beginnt am Montag aus plan.start ----------
+let W1 = Date.UTC(2026, 8, 28);
 const DAY = 86400000;
 const utcDay = (d) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
 
-/** Trainingswoche zu einem Datum (kann < 1 oder > 22 sein). */
+/** Trainingswoche zu einem Datum (kann < 1 oder > letzte Woche sein). */
 export const weekOf = (date) => Math.floor((utcDay(date) - W1) / DAY / 7) + 1;
 
 /** Montag der Woche als lokales Datum. */
@@ -454,9 +157,14 @@ export function weekStart(n) {
 
 export const fmtDate = (d) => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.`;
 
-/** Phase, in der die Woche liegt; davor P1, danach P6. */
+/** Phase, in der die Woche liegt; davor die erste, danach die letzte (ohne Plan null). */
 export function phaseOfWeek(n) {
-  return PHASES.find((p) => p.weeks.includes(n)) ?? (n < 1 ? PHASES[0] : PHASES[PHASES.length - 1]);
+  const hit = PHASES.find((p) => p.weeks.includes(n));
+  if (hit || !PHASES.length) return hit ?? null;
+  // Lücke oder außerhalb: Phase mit der letzten Woche davor, vor dem Start die erste
+  let best = null;
+  for (const p of PHASES) for (const w of p.weeks) if (w <= n && (!best || w > best.w)) best = { p, w };
+  return best?.p ?? PHASES[0];
 }
 
 /** Wochentag 1 = Mo … 7 = So. */
@@ -556,7 +264,7 @@ export const historyOf = (all, ex) => all.filter((e) => e.ex === ex).sort((a, b)
 
 // ---------- Übungen tauschen (Plan-Editor light) ----------
 // Ein Tausch gilt für eine Übung in einer Einheit einer Phase, ab einer Woche. Vergangene Wochen bleiben, wie sie
-// trainiert wurden. Gespeichert als Zeile swap|Phase|Einheit|Übung mit hist = [{ from, to, target }] (nach from
+// trainiert wurden. Gespeichert als Zeile swap|Phase|Einheit|Übung mit hist = [{ from, to, target, name? }] (nach from
 // sortiert, to = Bibliotheks-ID, leer = zurück zur Planübung). Einträge der getauschten Übung laufen unter ihrer
 // eigenen ID, so passen "Zuletzt" und Verlauf zur neuen Übung.
 
@@ -576,12 +284,12 @@ export function swapAt(row, week) {
  * Neue Tausch-Stufe ab einer Woche. Spätere Stufen fallen weg, frühere bleiben unverändert.
  * @returns {{hist: object[]}} Felder für die gespeicherte Zeile
  */
-export function addSwap(row, { from, to, target = '' }) {
+export function addSwap(row, { from, to, target = '', name = '' }) {
   const keep = swapHist(row).filter((h) => h.from < from);
   const prev = keep.length ? keep[keep.length - 1] : null;
   // Gleicher Stand wie davor: keine neue Stufe nötig
   if ((prev?.to ?? '') === to && (!to || (prev?.target ?? '') === target)) return { hist: keep, to: undefined, target: undefined };
-  return { hist: [...keep, { from, to, target: to ? target : '' }], to: undefined, target: undefined };
+  return { hist: [...keep, { from, to, target: to ? target : '', ...(to && name ? { name } : {}) }], to: undefined, target: undefined };
 }
 
 /**
@@ -595,8 +303,8 @@ export function applySwap(item, row, week) {
   const h = swapAt(row, week);
   const to = h?.to && LIB.get(h.to);
   if (!to || to.id === (item.lib ?? item.id)) return item;
-  const { id, name, app, time, shuttle, ph } = to;
-  return { id, name, target: h.target?.trim() || item.target, app, time, shuttle, ph, from: item.from, swappedFrom: item, swapFrom: h.from };
+  const { id, app, time, shuttle, ph } = to;
+  return { id, name: h.name?.trim() || to.name, target: h.target?.trim() || item.target, app, time, shuttle, ph, from: item.from, swappedFrom: item, swapFrom: h.from };
 }
 
 /** Wo die Übung im Plan vorkommt: [{ phase, unit }] in Planreihenfolge. */
@@ -613,6 +321,173 @@ export function swapCandidates(item, taken = []) {
   const skip = new Set([self?.id, ...taken]);
   const list = [...LIB.values()].filter((x) => !skip.has(x.id) && x.cat !== 'warmup' && x.cat !== 'mobil');
   return self ? [...list.filter((x) => x.cat === self.cat), ...list.filter((x) => x.cat !== self.cat)] : list;
+}
+
+// ---------- Plan exportieren und importieren ----------
+// Export: das Plan-Dokument, jede Übung mit ihren Tausch-Stufen (hist). Import: der Plan aus der Datei ersetzt den
+// bisherigen. Steht an einer Stelle (gleiche Phase und Einheit, gleiche id, sonst gleiche Reihenfolge) in einer Woche
+// eine andere Übung oder Vorgabe, entscheidet der Nutzer: hier behalten oder aus der Datei, für alle Wochen oder ab jetzt.
+
+/** Alle Stellen im Plan in Planreihenfolge: [{ phase, unit, item }] (item = Eintrag aus dem Plan). */
+export function planSlots(phases = PHASES) {
+  const out = [];
+  for (const p of phases) for (const u of p.units) for (const it of [...u.items, ...(u.block ?? [])]) out.push({ phase: p, unit: u, item: it });
+  return out;
+}
+
+/** Tausch-Stufen aus einer Datei: nur bekannte Felder. */
+export const cleanHist = (hist) =>
+  (Array.isArray(hist) ? hist : []).slice(0, 50).map((h) => ({
+    from: Math.max(1, Number(h?.from) || 1), to: String(h?.to ?? '').slice(0, 60), target: String(h?.target ?? '').slice(0, 200),
+    ...(h?.name ? { name: String(h.name).slice(0, 120) } : {}),
+  }));
+
+/** Tausch-Stufen bereinigt (nach from sortiert, ohne doppelte Stände). */
+export function normHist(hist) {
+  let row = { hist: [] };
+  for (const h of [...(hist ?? [])].sort((a, b) => a.from - b.from)) row = addSwap(row, h);
+  return row.hist;
+}
+
+const rawLists = (u) => [u.items ?? [], u.block ?? []];
+const rawId = (it) => it.id || it.ex;
+
+/** Plan-Dokument zum Exportieren: jede Übung mit ihren Tausch-Stufen (hist: from, to = Bibliotheks-ID, target, name?). */
+export function exportPlan(rows) {
+  if (!PLAN) return null;
+  const doc = structuredClone(PLAN);
+  for (const p of doc.phases)
+    for (const u of p.units)
+      for (const it of rawLists(u).flat()) {
+        const hist = normHist(swapHist(rows.get(swapKey(p.id, u.id, rawId(it)))));
+        delete it.hist;
+        if (hist.length) it.hist = hist;
+      }
+  return doc;
+}
+
+/** Für die Woche gültige Übung als Vergleichsschlüssel. */
+const stateAt = (item, hist, week) => {
+  if (item.from && week < item.from) return '-';
+  const it = applySwap(item, { hist }, week);
+  return `${it.id}|${String(it.target ?? '').trim()}`;
+};
+
+/** Abschnitte einer Stelle über Wochen: [{ from, until, id, lib, name, target }]. */
+export function slotSummary(item, hist, weeks) {
+  const out = [];
+  for (const w of weeks) {
+    const it = applySwap(item, { hist }, w);
+    const last = out.at(-1);
+    if (last && last.id === it.id && last.target === (it.target ?? '')) last.until = w;
+    else out.push({ from: w, until: w, id: it.id, lib: it.swappedFrom ? it.id : it.lib ?? it.id, name: it.name, target: it.target ?? '' });
+  }
+  return out;
+}
+
+/** Stellen beider Pläne zuordnen: erst gleiche id, dann übrige in Reihenfolge. Je Liste (Übungen, Block) getrennt. */
+function pairItems(local, incoming) {
+  const pairs = [];
+  const usedL = new Set();
+  const restI = [];
+  incoming.forEach((it, j) => {
+    const k = local.findIndex((l, n) => !usedL.has(n) && l.id === it.id);
+    if (k >= 0) {
+      usedL.add(k);
+      pairs.push([k, j]);
+    } else restI.push(j);
+  });
+  const restL = local.map((_, n) => n).filter((n) => !usedL.has(n));
+  for (let n = 0; n < Math.min(restL.length, restI.length); n++) pairs.push([restL[n], restI[n]]);
+  return pairs;
+}
+
+/**
+ * Abweichungen zwischen dem Plan hier (mit Tauschen) und dem Plan aus der Datei (mit hist).
+ * @param {Map<string, object>} rows gespeicherte Zeilen
+ * @param {object} doc geprüfte Plan-Datei
+ * @param {number} curWeek aktuelle Trainingswoche
+ * @returns {object[]} je Abweichung { phase, unit, local, localHist, localRaw, item, hist, at, past, future }
+ */
+export function planConflicts(rows, doc, curWeek) {
+  if (!PLAN) return [];
+  const inc = normalizePlan(doc);
+  const out = [];
+  for (const p of inc.phases) {
+    const lp = PHASES.find((x) => x.id === p.id);
+    const rawP = doc.phases.find((x) => String(x.id) === p.id);
+    const rawLP = PLAN.phases.find((x) => String(x.id) === p.id);
+    if (!lp) continue;
+    for (const u of p.units) {
+      const lu = lp.units.find((x) => x.id === u.id);
+      if (!lu) continue;
+      const rawU = rawP.units.find((x) => String(x.id) === u.id);
+      const rawLU = rawLP.units.find((x) => String(x.id) === u.id);
+      [[lu.items, u.items], [lu.block ?? [], u.block ?? []]].forEach(([L, I], list) => {
+        for (const [k, j] of pairItems(L, I)) {
+          const local = L[k];
+          const item = I[j];
+          const localHist = normHist(swapHist(rows.get(swapKey(p.id, u.id, local.id))));
+          const hist = normHist(cleanHist(rawLists(rawU)[list][j].hist));
+          const diff = p.weeks.filter((w) => stateAt(local, localHist, w) !== stateAt(item, hist, w));
+          if (!diff.length) continue;
+          out.push({
+            phase: p, unit: u, local, localHist, localRaw: rawLists(rawLU)[list][k], item, hist,
+            at: { list, index: j }, past: diff.some((w) => w < curWeek), future: diff.some((w) => w >= curWeek),
+          });
+        }
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Neuen Plan aus der Datei und den Antworten bauen.
+ * @param {object} doc geprüfte Plan-Datei (mit hist)
+ * @param {{conflict: object, pick: 'local'|'file', scope: 'all'|'future'|null}[]} decisions
+ * @returns {{plan: object, swaps: Map<string, object[]>}} Plan ohne hist, Tausch-Stufen je swap-Zeile
+ */
+export function buildImport(doc, decisions, curWeek) {
+  const plan = structuredClone(doc);
+  const swaps = new Map();
+  for (const p of plan.phases)
+    for (const u of p.units)
+      for (const it of rawLists(u).flat()) {
+        swaps.set(swapKey(p.id, u.id, rawId(it)), normHist(cleanHist(it.hist)));
+        delete it.hist;
+      }
+  for (const { conflict: c, pick, scope } of decisions) {
+    const fromFile = pick === 'file' && (scope !== 'future' || !c.past);
+    const keep = pick === 'local' || (scope === 'future' && !c.future);
+    if (fromFile && !keep) continue;
+    // Stelle behält die Übung von hier, die Datei-Übung kommt höchstens als Tausch ab jetzt dazu
+    const rawU = plan.phases.find((x) => String(x.id) === c.phase.id).units.find((x) => String(x.id) === c.unit.id);
+    const list = c.at.list ? rawU.block : rawU.items;
+    const local = structuredClone(c.localRaw);
+    delete local.hist;
+    list[c.at.index] = local;
+    swaps.delete(swapKey(c.phase.id, c.unit.id, c.item.id));
+    const key = swapKey(c.phase.id, c.unit.id, c.local.id);
+    if (keep) swaps.set(key, c.localHist);
+    else {
+      const stages = slotSummary(c.item, c.hist, c.phase.weeks).map((s) => ({ from: s.from, to: s.lib, target: s.target, name: s.name }));
+      swaps.set(key, mergeSwap(c.localHist, stages, Math.max(curWeek, c.phase.weeks[0])));
+    }
+  }
+  return { plan, swaps };
+}
+
+/**
+ * Stand aus der Datei übernehmen. from = 1: in allen Wochen, sonst erst ab dieser Woche (davor bleibt der Stand hier).
+ * @returns {object[]} neue Tausch-Stufen
+ */
+export function mergeSwap(local, incoming, from = 1) {
+  let row = { hist: normHist(local) };
+  const cur = swapAt({ hist: incoming }, from);
+  row = addSwap(row, { from, to: cur?.to ?? '', target: cur?.target ?? '', name: cur?.name ?? '' });
+  for (const h of normHist(incoming)) if (h.from > from) row = addSwap(row, h);
+  return row.hist;
 }
 
 // ---------- Fortschritt je Einheit und Woche ----------
@@ -671,6 +546,7 @@ export function weeksOf(sessions, until) {
   const out = [];
   for (let w = 1; w <= until; w++) {
     const p = phaseOfWeek(w);
+    if (!p) continue;
     const done = sessions.filter((s) => s.week === w);
     out.push({
       week: w, phase: p.id, deload: w === p.dl,

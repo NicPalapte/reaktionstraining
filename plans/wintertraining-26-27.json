@@ -1,0 +1,1454 @@
+{
+  "format": "tennis-plan",
+  "version": 1,
+  "name": "Wintertraining 26/27",
+  "start": "2026-09-28",
+  "info": [
+    [
+      "Woche",
+      "Mo A · Di Spinning oder Lauf (locker) · Mi B · Fr C · So Sprint (Tausch: Sprint Sa, C Do)"
+    ],
+    [
+      "Home",
+      "W9 Reise 21.–29.11. · W13 Weihnachten · W14 Silvester"
+    ],
+    [
+      "Ellb-Ampel",
+      "Schmerz ≤3/10 ok · Folgetag schlechter → Arm 1 Stufe zurück"
+    ],
+    [
+      "DL = Deload",
+      "Gleiche Gewichte, ~40 % weniger Sätze, Sprünge halbiert"
+    ],
+    [
+      "E1 → E2",
+      "Iso → Pushdown 3-0-3 (2 Wo ≤2/10 + Physio)"
+    ],
+    [
+      "E2 → E3",
+      "Überkopf-Strecken (3 Wo ohne Folgetag)"
+    ],
+    [
+      "E3 → E4",
+      "Medball-Würfe (2 Wo schmerzfrei, ab W12)"
+    ],
+    [
+      "E4 → Aufschläge",
+      "ab W16 (2 Wo Würfe ok)"
+    ],
+    [
+      "Lauf",
+      "P2 40–50 · P3 45–60 · P4 30–40 min"
+    ],
+    [
+      "Schulterblatt-Block",
+      "Ende A + C, Mi zählt B. Klimmzug: erst Schulterblätter runter, dann ziehen"
+    ]
+  ],
+  "warmup": [
+    {
+      "ex": "tennisball",
+      "name": "Tennisball Schulterblatt (Wand/Boden)",
+      "target": "1–2 min/Seite, harte Punkte 20 s halten"
+    },
+    {
+      "ex": "aussenrot",
+      "name": "Außenrotation beidarmig Band",
+      "target": "Ellb am Körper, nach außen ziehen, 3 × 15"
+    }
+  ],
+  "cooldown": [
+    {
+      "ex": "seitlage",
+      "target": "Arm gestreckt nach hinten oben, 2 × 40 s/Seite"
+    },
+    {
+      "ex": "brust",
+      "name": "Brust Türrahmen",
+      "target": "1 × 40 s/Seite"
+    },
+    {
+      "ex": "unterarm-dehnen",
+      "id": "unterarm",
+      "name": "Unterarm",
+      "target": "1 × 40 s/Seite"
+    },
+    {
+      "ex": "trizeps-dehnen",
+      "name": "Trizeps",
+      "target": "1 × 40 s/Seite, nur schmerzfrei"
+    }
+  ],
+  "routine": [
+    {
+      "title": "Täglich · Physio",
+      "target": "6 min, Pflicht",
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "items": [
+        {
+          "ex": "seitlage",
+          "target": "Arm gestreckt nach hinten oben, 2 × 40 s/Seite"
+        },
+        {
+          "ex": "tennisball",
+          "name": "Tennisball Schulterblatt (Wand/Boden)",
+          "target": "1–2 min/Seite, harte Punkte 20 s halten"
+        },
+        {
+          "ex": "aussenrot",
+          "name": "Außenrotation beidarmig Band",
+          "target": "Ellb am Körper, nach außen ziehen, 3 × 15"
+        }
+      ]
+    },
+    {
+      "title": "Trizeps-Iso",
+      "target": "",
+      "days": [
+        1,
+        2,
+        4,
+        6
+      ],
+      "items": [
+        {
+          "ex": "trizeps-iso",
+          "name": "Trizeps-Iso Band 90°",
+          "target": "3 × 40 s"
+        }
+      ]
+    },
+    {
+      "title": "Dehnen Oberkörper",
+      "target": "je 1 × 40 s/Seite",
+      "days": [
+        1,
+        3,
+        5
+      ],
+      "items": [
+        {
+          "ex": "brust",
+          "name": "Brust Türrahmen"
+        },
+        {
+          "ex": "unterarm-dehnen",
+          "name": "Unterarm"
+        },
+        {
+          "ex": "trizeps-dehnen",
+          "name": "Trizeps",
+          "target": "nur schmerzfrei"
+        }
+      ]
+    },
+    {
+      "title": "Dehnen Beine",
+      "target": "je 1 × 40 s/Seite, ca. 3 min",
+      "days": [
+        2,
+        4,
+        6
+      ],
+      "items": [
+        {
+          "ex": "hueftbeuger",
+          "name": "Hüftbeuger"
+        },
+        {
+          "ex": "beinbeuger-dehnen",
+          "name": "Beinbeuger"
+        },
+        {
+          "ex": "hocke",
+          "name": "Tiefe Hocke"
+        }
+      ]
+    }
+  ],
+  "routineNotes": [
+    "An Gym-Tagen ist das im Workout: Tennisball und Außenrotation als Aufwärmen, Seitlage und Dehnen nach der Einheit.",
+    "Stress-Tag: nur den Physio-Block."
+  ],
+  "phases": [
+    {
+      "id": "P1",
+      "name": "Grundlage",
+      "weeks": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "dl": null,
+      "goal": "Grundlage: Technik, Landungen, Ellbogen schonen",
+      "details": [
+        [
+          "Werte",
+          "Eigene Werte aus W1–4 über Einstellungen → Krafttraining importieren oder direkt eintragen"
+        ],
+        [
+          "Sprünge",
+          "Niedrige Box und Hüpfer mit Landung halten"
+        ],
+        [
+          "Ellbogen",
+          "E1 Isometrie Kabel 90°. Weiter zu E2 nach 2 Wo ≤2/10 + Physio"
+        ]
+      ],
+      "weekExtra": "Ausdauer",
+      "units": [
+        {
+          "id": "A",
+          "title": "A",
+          "name": "Beine & Rumpf",
+          "gym": true,
+          "items": [
+            {
+              "ex": "boxsprung",
+              "name": "Sprung auf niedrige Box, Landung 2 s halten"
+            },
+            {
+              "ex": "pogo",
+              "name": "Pogo-Sprünge (Fußgelenk, kurzer Kontakt)"
+            },
+            {
+              "ex": "kniebeuge",
+              "name": "Kniebeuge (Back Squat)"
+            },
+            {
+              "ex": "bss"
+            },
+            {
+              "ex": "beinbeuger",
+              "name": "Beinbeuger (Leg Curl / Nordic)"
+            },
+            {
+              "ex": "wadenheben"
+            },
+            {
+              "ex": "pallof"
+            },
+            {
+              "ex": "seitstuetz"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "title": "B",
+          "name": "Oberkörper + Trizeps",
+          "gym": true,
+          "items": [
+            {
+              "ex": "klimmzug",
+              "name": "Latzug (oder Klimmzug)"
+            },
+            {
+              "ex": "rudern",
+              "name": "Rudern Kabel / Kurzhantel"
+            },
+            {
+              "ex": "landmine",
+              "name": "Landmine Press einarmig"
+            },
+            {
+              "ex": "facepulls"
+            },
+            {
+              "ex": "trizeps-iso",
+              "name": "Trizeps E1: Isometrie Kabel 90°"
+            },
+            {
+              "ex": "deadbug"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "title": "C",
+          "name": "Hinge & Ganzkörper + Trizeps",
+          "gym": true,
+          "items": [
+            {
+              "ex": "standweitsprung",
+              "name": "Standweitsprung, Landung halten"
+            },
+            {
+              "ex": "einbein-huepfer",
+              "name": "Einbeiniger Hüpfer auf der Stelle, Landung halten"
+            },
+            {
+              "ex": "kreuzheben",
+              "name": "Rumänisches Kreuzheben"
+            },
+            {
+              "ex": "hipthrust"
+            },
+            {
+              "ex": "einbein-kh"
+            },
+            {
+              "ex": "khbank",
+              "name": "KH-Bankdrücken oder Floor Press"
+            },
+            {
+              "ex": "trizeps-iso",
+              "name": "Trizeps E1: Isometrie Kabel 90°"
+            },
+            {
+              "ex": "unterarm",
+              "name": "Unterarm: Handgelenk-Strecker/-Beuger"
+            }
+          ]
+        },
+        {
+          "id": "S",
+          "title": "Sprint",
+          "name": "",
+          "gym": false,
+          "items": [
+            {
+              "ex": "shuttle",
+              "name": "Sprint: bester Shuttle-Wert",
+              "target": "s"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P2",
+      "name": "Aufbau",
+      "weeks": [
+        5,
+        6,
+        7,
+        8
+      ],
+      "dl": null,
+      "goal": "Volumen aufbauen: saubere Wiederholungen im mittleren Bereich",
+      "details": [
+        [
+          "Hauptübungen",
+          "4 × 8–10 @ RPE 7–8, Pause 2 min"
+        ],
+        [
+          "Nebenübungen",
+          "3 × 8–12"
+        ],
+        [
+          "Ellbogen",
+          "E2 Pushdown 3-0-3, sonst E1"
+        ],
+        [
+          "Ausdauer",
+          "Spinning oder Lauf locker, 40–50 min"
+        ],
+        [
+          "Deload",
+          "W8 normal, Deload ist die Reise in W9"
+        ]
+      ],
+      "weekExtra": "Ausdauer",
+      "units": [
+        {
+          "id": "A",
+          "title": "A",
+          "name": "Beine & Rumpf",
+          "gym": true,
+          "block": [
+            {
+              "ex": "scapula-pullup",
+              "name": "Scapula-Klimmzug (alt. Straight-Arm Pulldown)",
+              "target": "3 × 8–10, Arme gestreckt, Schultern runterziehen, oben 2 s halten"
+            },
+            {
+              "ex": "y-raise",
+              "name": "Y-Raise Bauchlage/Schrägbank",
+              "target": "3 × 10–12 leicht, Schulterblatt unten/hinten"
+            }
+          ],
+          "items": [
+            {
+              "ex": "boxsprung",
+              "target": "3 × 5, höher als P1"
+            },
+            {
+              "ex": "pogo",
+              "name": "Pogo seitlich",
+              "target": "2 × 10"
+            },
+            {
+              "ex": "kniebeuge",
+              "target": "4 × 8–10"
+            },
+            {
+              "ex": "bss",
+              "target": "3 × 8–10/Bein"
+            },
+            {
+              "ex": "beinbeuger",
+              "target": "3 × 8–12"
+            },
+            {
+              "ex": "wadenheben",
+              "name": "Wadenheben",
+              "target": "3 × 12–15"
+            },
+            {
+              "ex": "woodchopper",
+              "name": "Holzhacker Kabel diagonal",
+              "target": "3 × 10/Seite, kontrolliert"
+            },
+            {
+              "ex": "seitstuetz",
+              "name": "Seitstütz + Bein",
+              "target": "3 × 30–40 s"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "title": "B",
+          "name": "Oberkörper + Trizeps",
+          "gym": true,
+          "items": [
+            {
+              "ex": "klimmzug",
+              "name": "Klimmzug/Latzug",
+              "target": "4 × 6–10"
+            },
+            {
+              "ex": "rudern",
+              "target": "4 × 8–12"
+            },
+            {
+              "ex": "landmine",
+              "target": "3 × 8–12 langsam"
+            },
+            {
+              "ex": "facepulls",
+              "target": "3 × 12–15"
+            },
+            {
+              "ex": "trizeps-pushdown",
+              "name": "Trizeps E2 Pushdown",
+              "target": "3–4 × 8–10, 3-0-3"
+            },
+            {
+              "ex": "deadbug",
+              "target": "3 × 10/Seite"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "title": "C",
+          "name": "Hinge & Ganzkörper + Trizeps",
+          "gym": true,
+          "block": [
+            {
+              "ex": "scapula-pullup",
+              "name": "Scapula-Klimmzug (alt. Straight-Arm Pulldown)",
+              "target": "3 × 8–10, Arme gestreckt, Schultern runterziehen, oben 2 s halten"
+            },
+            {
+              "ex": "y-raise",
+              "name": "Y-Raise Bauchlage/Schrägbank",
+              "target": "3 × 10–12 leicht, Schulterblatt unten/hinten"
+            }
+          ],
+          "items": [
+            {
+              "ex": "skater",
+              "target": "3 × 5/Seite"
+            },
+            {
+              "ex": "standweitsprung",
+              "target": "3 × 3"
+            },
+            {
+              "ex": "kreuzheben",
+              "name": "Kreuzheben/RDL",
+              "target": "4 × 8–10"
+            },
+            {
+              "ex": "hipthrust",
+              "target": "3 × 8–12"
+            },
+            {
+              "ex": "einbein-kh",
+              "name": "Einbein. Kreuzheben",
+              "target": "3 × 8/Bein"
+            },
+            {
+              "ex": "khbank",
+              "name": "KH-Bank/Floor Press",
+              "target": "3 × 8–12 langsam"
+            },
+            {
+              "ex": "trizeps-pushdown",
+              "name": "Trizeps E2 Pushdown",
+              "target": "3 × 8–10, 3-0-3"
+            },
+            {
+              "ex": "unterarm",
+              "name": "Unterarm/Griff",
+              "target": "3 × 15"
+            }
+          ]
+        },
+        {
+          "id": "S",
+          "title": "Sprint",
+          "name": "",
+          "gym": false,
+          "warmup": [
+            {
+              "ex": "sp-einlaufen",
+              "target": "5 min"
+            },
+            {
+              "ex": "sp-abc",
+              "name": "Lauf-ABC: Skippings, Anfersen, Hopserlauf, Seitgalopp",
+              "target": "je 2 × 15 m"
+            },
+            {
+              "ex": "sp-mobil",
+              "target": "je 10/Seite"
+            },
+            {
+              "ex": "sp-steiger",
+              "target": "2–3 × 30 m auf 80–90 %"
+            }
+          ],
+          "intro": "Volle Pausen, jede Wiederholung mit voller Spannung.",
+          "items": [
+            {
+              "ex": "sprint-20m",
+              "target": "6–8 ×, Pause 90 s"
+            },
+            {
+              "ex": "shuttle",
+              "target": "4–6 ×, bester Wert"
+            },
+            {
+              "ex": "spider",
+              "target": "3 ×, Pause 2 min"
+            },
+            {
+              "ex": "abbremsen",
+              "target": "5 ×"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "H",
+      "name": "Home",
+      "weeks": [
+        9,
+        13,
+        14
+      ],
+      "dl": null,
+      "goal": "Band und Körpergewicht, ca. 25 min: W9 Reise, W13 Weihnachten, W14 Silvester",
+      "details": [
+        [
+          "W9 · W13",
+          "Home Kraft 2–3× pro Woche, locker = Deload"
+        ],
+        [
+          "W14",
+          "Home Explosiv 3×, dazu 1× Sprint draußen"
+        ],
+        [
+          "Mitnehmen",
+          "Band. Morgens-Physio täglich weiter, Lauf oder Spinning wenn möglich"
+        ]
+      ],
+      "weekExtra": "Workouts /3 · Notiz",
+      "units": [
+        {
+          "id": "K",
+          "title": "Kraft",
+          "name": "W9, W13",
+          "gym": false,
+          "intro": "3 min warm: Hampelmann, Hocke, Armkreisen.",
+          "items": [
+            {
+              "ex": "standweitsprung",
+              "name": "Standweitsprung oder Skater",
+              "target": "3 × 4 (wenn Platz), Bestwert notieren"
+            },
+            {
+              "ex": "bss",
+              "id": "bss-rucksack",
+              "name": "Bulgarian Split Squat (Rucksack)",
+              "target": "3 × 10/Bein"
+            },
+            {
+              "ex": "einbein-kh",
+              "id": "einbein-kh-rucksack",
+              "name": "Einbein. Kreuzheben (Rucksack)",
+              "target": "3 × 8/Bein"
+            },
+            {
+              "ex": "glute-bridge-einbein",
+              "name": "Einbein. Glute Bridge",
+              "target": "3 × 12/Bein"
+            },
+            {
+              "ex": "rudern",
+              "id": "rudern-band",
+              "name": "Band-Rudern",
+              "target": "3 × 15"
+            },
+            {
+              "ex": "woodchopper",
+              "id": "woodchopper-band",
+              "name": "Holzhacker Band",
+              "target": "3 × 10/Seite"
+            },
+            {
+              "ex": "trizeps-pushdown",
+              "id": "trizeps-band",
+              "name": "Trizeps Band-Pushdown (Tür)",
+              "target": "3 × 12, 3-0-3"
+            },
+            {
+              "ex": "straight-arm",
+              "id": "latzug-band",
+              "name": "Band-Lat-Zug gestreckt",
+              "target": "3 × 12"
+            },
+            {
+              "ex": "y-raise",
+              "name": "Y-Raise Bauchlage",
+              "target": "3 × 10"
+            },
+            {
+              "ex": "seitstuetz",
+              "name": "Seitstütz",
+              "target": "2 × 30 s"
+            }
+          ]
+        },
+        {
+          "id": "X",
+          "title": "Explosiv",
+          "name": "W14",
+          "gym": false,
+          "intro": "5 min warm, dazu Seil, falls da.",
+          "items": [
+            {
+              "ex": "pogo",
+              "name": "Pogo",
+              "target": "3 × 15"
+            },
+            {
+              "ex": "sprungkniebeuge",
+              "name": "Sprungkniebeuge (KG/Rucksack)",
+              "target": "4 × 5, volle Pausen"
+            },
+            {
+              "ex": "skater",
+              "id": "skater-reaktiv",
+              "name": "Skater reaktiv",
+              "target": "3 × 5/Seite"
+            },
+            {
+              "ex": "einbein-huepfen-vor",
+              "name": "Einbein. Hüpfen vorwärts",
+              "target": "3 × 4/Bein"
+            },
+            {
+              "ex": "einbein-huepfen-seit",
+              "name": "Einbein. Hüpfen seitlich",
+              "target": "3 × 4/Bein"
+            },
+            {
+              "ex": "standweitsprung",
+              "target": "3 × 3, Bestwert"
+            },
+            {
+              "ex": "bss",
+              "id": "bss-rucksack",
+              "name": "Bulgarian Split Squat (Rucksack)",
+              "target": "2 × 8"
+            },
+            {
+              "ex": "rudern",
+              "id": "rudern-band",
+              "name": "Band-Rudern",
+              "target": "2 Sätze"
+            },
+            {
+              "ex": "woodchopper",
+              "id": "woodchopper-band",
+              "name": "Holzhacker Band",
+              "target": "2 Sätze"
+            },
+            {
+              "ex": "trizeps-pushdown",
+              "id": "trizeps-band",
+              "name": "Trizeps Band",
+              "target": "2 Sätze"
+            },
+            {
+              "ex": "straight-arm",
+              "id": "latzug-band",
+              "name": "Band-Lat-Zug gestreckt",
+              "target": "2 Sätze"
+            },
+            {
+              "ex": "y-raise",
+              "name": "Y-Raise Bauchlage",
+              "target": "2 Sätze"
+            }
+          ]
+        },
+        {
+          "id": "S",
+          "title": "Sprint",
+          "name": "draußen",
+          "gym": false,
+          "intro": "W14: 1× draußen.",
+          "items": [
+            {
+              "ex": "sprint-20m",
+              "target": "6 ×"
+            },
+            {
+              "ex": "shuttle",
+              "target": "4 ×"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P3",
+      "name": "Maximalkraft",
+      "weeks": [
+        10,
+        11,
+        12
+      ],
+      "dl": null,
+      "goal": "Schwer und explosiv: Maximalkraft mit Kontrastsprüngen",
+      "details": [
+        [
+          "Beine/Zug",
+          "4–5 × 4–6 @ RPE 8, Pause 3 min"
+        ],
+        [
+          "Drücken/Trizeps",
+          "8–12, ab W11 ggf. 6–8"
+        ],
+        [
+          "Kontrast",
+          "Nach jedem schweren Satz direkt 3 Sprünge"
+        ],
+        [
+          "Ellbogen",
+          "E3 Überkopf-Strecken, sonst Pushdown. E4 Medball-Würfe ab W12, wenn 2 Wo schmerzfrei"
+        ],
+        [
+          "Ausdauer",
+          "Lauf 45–60 min"
+        ],
+        [
+          "Sprint",
+          "Wie P2 plus Reaktionsdrill 4–6 ×. Bei Glätte: Halle, Schlitten oder Skierg"
+        ]
+      ],
+      "weekExtra": "Ausdauer",
+      "units": [
+        {
+          "id": "A",
+          "title": "A",
+          "name": "Beine & Rumpf",
+          "gym": true,
+          "block": [
+            {
+              "ex": "scapula-pullup",
+              "name": "Scapula-Klimmzug (alt. Straight-Arm Pulldown)",
+              "target": "3 × 8–10, Arme gestreckt, Schultern runterziehen, oben 2 s halten"
+            },
+            {
+              "ex": "y-raise",
+              "name": "Y-Raise Bauchlage/Schrägbank",
+              "target": "3 × 10–12 leicht, Schulterblatt unten/hinten"
+            }
+          ],
+          "items": [
+            {
+              "ex": "einbein-huepfen-vor",
+              "name": "Einbein. Hüpfen vorwärts",
+              "target": "3 × 4/Bein"
+            },
+            {
+              "ex": "kniebeuge",
+              "target": "4–5 × 4–6"
+            },
+            {
+              "ex": "sprungkniebeuge",
+              "id": "sprungkniebeuge-kontrast",
+              "name": "+ Sprungkniebeuge o. Last",
+              "target": "3 nach jedem Satz"
+            },
+            {
+              "ex": "bss",
+              "target": "3 × 6–8/Bein"
+            },
+            {
+              "ex": "beinbeuger",
+              "target": "3 × 6–10"
+            },
+            {
+              "ex": "wadenheben",
+              "name": "Wadenheben",
+              "target": "3 × 10–12 schwer"
+            },
+            {
+              "ex": "woodchopper",
+              "name": "Holzhacker Kabel diagonal",
+              "target": "3 × 10/Seite, kontrolliert"
+            },
+            {
+              "ex": "seitstuetz",
+              "name": "Seitstütz + Bein",
+              "target": "3 × 40 s"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "title": "B",
+          "name": "Oberkörper + Trizeps",
+          "gym": true,
+          "items": [
+            {
+              "ex": "klimmzug",
+              "name": "Klimmzug (+Gewicht)",
+              "target": "4 × 4–6"
+            },
+            {
+              "ex": "rudern",
+              "target": "4 × 6–8"
+            },
+            {
+              "ex": "landmine",
+              "target": "3 × 8–12"
+            },
+            {
+              "ex": "facepulls",
+              "target": "3 × 12–15"
+            },
+            {
+              "ex": "trizeps-pushdown",
+              "name": "Trizeps E2 Pushdown",
+              "target": "4 × 8–10, 3-0-3"
+            },
+            {
+              "ex": "deadbug",
+              "target": "3 × 10/Seite"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "title": "C",
+          "name": "Hinge & Ganzkörper + Trizeps",
+          "gym": true,
+          "block": [
+            {
+              "ex": "scapula-pullup",
+              "name": "Scapula-Klimmzug (alt. Straight-Arm Pulldown)",
+              "target": "3 × 8–10, Arme gestreckt, Schultern runterziehen, oben 2 s halten"
+            },
+            {
+              "ex": "y-raise",
+              "name": "Y-Raise Bauchlage/Schrägbank",
+              "target": "3 × 10–12 leicht, Schulterblatt unten/hinten"
+            }
+          ],
+          "items": [
+            {
+              "ex": "einbein-huepfen-seit",
+              "name": "Einbein. Hüpfen seitlich",
+              "target": "3 × 4/Bein"
+            },
+            {
+              "ex": "kreuzheben",
+              "target": "4–5 × 4–6"
+            },
+            {
+              "ex": "standweitsprung",
+              "id": "standweitsprung-kontrast",
+              "name": "+ Standweitsprung",
+              "target": "3 nach jedem Satz"
+            },
+            {
+              "ex": "hipthrust",
+              "target": "3 × 6–10"
+            },
+            {
+              "ex": "einbein-kh",
+              "name": "Einbein. Kreuzheben",
+              "target": "3 × 8/Bein"
+            },
+            {
+              "ex": "khbank",
+              "name": "KH-Bank/Floor Press",
+              "target": "3 × 8–12"
+            },
+            {
+              "ex": "trizeps-ueberkopf",
+              "name": "Trizeps E3 Überkopf",
+              "target": "3 × 8–10 (sonst Pushdown)"
+            },
+            {
+              "ex": "medball-rotation",
+              "name": "Medball Rotation",
+              "target": "4 × 6/Seite"
+            },
+            {
+              "ex": "medball-ueberkopf",
+              "name": "E4 Medball Überkopf",
+              "target": "3 × 6, 2 kg, ab W12",
+              "from": 12
+            },
+            {
+              "ex": "unterarm",
+              "name": "Unterarm/Griff",
+              "target": "3 × 12–15"
+            }
+          ]
+        },
+        {
+          "id": "S",
+          "title": "Sprint",
+          "name": "",
+          "gym": false,
+          "warmup": [
+            {
+              "ex": "sp-einlaufen",
+              "target": "5 min"
+            },
+            {
+              "ex": "sp-abc",
+              "name": "Lauf-ABC: Skippings, Anfersen, Hopserlauf, Seitgalopp",
+              "target": "je 2 × 15 m"
+            },
+            {
+              "ex": "sp-mobil",
+              "target": "je 10/Seite"
+            },
+            {
+              "ex": "sp-steiger",
+              "target": "2–3 × 30 m auf 80–90 %"
+            }
+          ],
+          "intro": "Wie P2 plus Reaktionsdrill. Bei Glätte: Halle, Schlitten oder Skierg.",
+          "items": [
+            {
+              "ex": "sprint-20m",
+              "target": "6–8 ×, Pause 90 s"
+            },
+            {
+              "ex": "shuttle",
+              "target": "4–6 ×, bester Wert"
+            },
+            {
+              "ex": "spider",
+              "target": "3 ×, Pause 2 min"
+            },
+            {
+              "ex": "abbremsen",
+              "target": "5 ×"
+            },
+            {
+              "ex": "reaktion",
+              "target": "4–6 Sätze"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P4",
+      "name": "Übertrag",
+      "weeks": [
+        15
+      ],
+      "dl": null,
+      "goal": "Kraft halten, explosiv: Schnelligkeit auf den Platz übertragen",
+      "details": [
+        [
+          "Sprünge",
+          "Frisch vor der Hauptübung"
+        ],
+        [
+          "Ellbogen",
+          "E4"
+        ],
+        [
+          "Ausdauer",
+          "Lauf 30–40 min"
+        ]
+      ],
+      "weekExtra": "Ausdauer",
+      "units": [
+        {
+          "id": "A",
+          "title": "A",
+          "name": "Beine & Rumpf",
+          "gym": true,
+          "block": [
+            {
+              "ex": "scapula-pullup",
+              "name": "Scapula-Klimmzug (alt. Straight-Arm Pulldown)",
+              "target": "3 × 8–10, Arme gestreckt, Schultern runterziehen, oben 2 s halten"
+            },
+            {
+              "ex": "y-raise",
+              "name": "Y-Raise Bauchlage/Schrägbank",
+              "target": "3 × 10–12 leicht, Schulterblatt unten/hinten"
+            }
+          ],
+          "items": [
+            {
+              "ex": "sprungkniebeuge",
+              "target": "4 × 4, 20–30 % Last"
+            },
+            {
+              "ex": "niedersprung",
+              "name": "Niedersprung 30 cm",
+              "target": "3 × 4 reaktiv"
+            },
+            {
+              "ex": "kniebeuge",
+              "target": "3 × 3–5"
+            },
+            {
+              "ex": "bss",
+              "target": "2 × 8"
+            },
+            {
+              "ex": "beinbeuger",
+              "target": "2 × 8"
+            },
+            {
+              "ex": "woodchopper",
+              "name": "Holzhacker Kabel diagonal",
+              "target": "2 × 10/Seite"
+            }
+          ]
+        },
+        {
+          "id": "B",
+          "title": "B",
+          "name": "Oberkörper + Trizeps",
+          "gym": true,
+          "items": [
+            {
+              "ex": "klimmzug",
+              "name": "Klimmzug",
+              "target": "3 × 5–6"
+            },
+            {
+              "ex": "rudern",
+              "target": "3 × 8"
+            },
+            {
+              "ex": "landmine",
+              "target": "3 × 8"
+            },
+            {
+              "ex": "facepulls",
+              "target": "2 × 15"
+            },
+            {
+              "ex": "trizeps-ueberkopf",
+              "name": "Trizeps E3 Überkopf",
+              "target": "3 × 8"
+            },
+            {
+              "ex": "medball-ueberkopf",
+              "name": "E4 Medball Überkopf",
+              "target": "4 × 5, 3 kg → einarmig"
+            }
+          ]
+        },
+        {
+          "id": "C",
+          "title": "C",
+          "name": "Hinge & Ganzkörper + Trizeps",
+          "gym": true,
+          "block": [
+            {
+              "ex": "scapula-pullup",
+              "name": "Scapula-Klimmzug (alt. Straight-Arm Pulldown)",
+              "target": "3 × 8–10, Arme gestreckt, Schultern runterziehen, oben 2 s halten"
+            },
+            {
+              "ex": "y-raise",
+              "name": "Y-Raise Bauchlage/Schrägbank",
+              "target": "3 × 10–12 leicht, Schulterblatt unten/hinten"
+            }
+          ],
+          "items": [
+            {
+              "ex": "seitsprung-rw",
+              "name": "Seitsprung Richtungswechsel",
+              "target": "3 × 4/Seite"
+            },
+            {
+              "ex": "boxsprung",
+              "id": "boxsprung-max",
+              "name": "Boxsprung max",
+              "target": "3 × 4"
+            },
+            {
+              "ex": "kreuzheben",
+              "target": "3 × 3–5"
+            },
+            {
+              "ex": "hipthrust",
+              "target": "2 × 8"
+            },
+            {
+              "ex": "khbank",
+              "name": "KH-Bank/Floor Press",
+              "target": "3 × 8"
+            },
+            {
+              "ex": "medball-rotation",
+              "name": "Medball Rotation",
+              "target": "4 × 6/Seite"
+            },
+            {
+              "ex": "unterarm",
+              "name": "Unterarm/Griff",
+              "target": "2 × 15"
+            }
+          ]
+        },
+        {
+          "id": "S",
+          "title": "Sprint",
+          "name": "35 min",
+          "gym": false,
+          "warmup": [
+            {
+              "ex": "sp-einlaufen",
+              "target": "5 min"
+            },
+            {
+              "ex": "sp-abc",
+              "name": "Lauf-ABC: Skippings, Anfersen, Hopserlauf, Seitgalopp",
+              "target": "je 2 × 15 m"
+            },
+            {
+              "ex": "sp-mobil",
+              "target": "je 10/Seite"
+            },
+            {
+              "ex": "sp-steiger",
+              "target": "2–3 × 30 m auf 80–90 %"
+            }
+          ],
+          "intro": "Kurz und schnell: Qualität vor Umfang.",
+          "items": [
+            {
+              "ex": "start-10m",
+              "target": "6 ×, Pause 60 s"
+            },
+            {
+              "ex": "reaktion",
+              "target": "6 Sätze"
+            },
+            {
+              "ex": "seil-einbein",
+              "target": "kurze Serien je Bein"
+            },
+            {
+              "ex": "abbremsen",
+              "target": "5 ×"
+            },
+            {
+              "ex": "shuttle",
+              "target": "bester Wert"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P5",
+      "name": "Rückkehr",
+      "weeks": [
+        16,
+        17,
+        18,
+        19
+      ],
+      "dl": null,
+      "goal": "Zurück auf den Platz: zwei Krafteinheiten, Tennis, Aufschläge stufenweise",
+      "details": [
+        [
+          "Woche",
+          "Mo Kraft 1 · Di Tennis · Do Kraft 2 · Sa Tennis. Kein Sprint, dafür 10 min Beinarbeit vorm Tennis"
+        ],
+        [
+          "Vorm Tennis",
+          "Trizeps-Iso 2 × 40 s"
+        ],
+        [
+          "Aufschläge",
+          "W16 Schatten + 20 @ 50 % · W17 30–40 @ 60–70 % · W18 40–50 @ 70–80 % + Kick · W19 50–60, volle Serien bis 10"
+        ]
+      ],
+      "weekExtra": "Aufschläge/Folgetag",
+      "routineNotes": [
+        "Vorm Tennis: Trizeps-Iso 2 × 40 s",
+        "Schulterblatt-Block zum 3. Mal: Sa morgens mit Band"
+      ],
+      "units": [
+        {
+          "id": "K1",
+          "title": "Kraft 1",
+          "name": "",
+          "gym": true,
+          "block": [
+            {
+              "ex": "scapula-pullup",
+              "name": "Scapula-Klimmzug (alt. Straight-Arm Pulldown)",
+              "target": "3 × 8–10, Arme gestreckt, Schultern runterziehen, oben 2 s halten"
+            },
+            {
+              "ex": "y-raise",
+              "name": "Y-Raise Bauchlage/Schrägbank",
+              "target": "3 × 10–12 leicht, Schulterblatt unten/hinten"
+            }
+          ],
+          "items": [
+            {
+              "ex": "sprungkniebeuge",
+              "target": "3 × 4, 20–30 %"
+            },
+            {
+              "ex": "kniebeuge",
+              "target": "3 × 3–5"
+            },
+            {
+              "ex": "rudern",
+              "target": "3 × 8"
+            },
+            {
+              "ex": "landmine",
+              "target": "3 × 8"
+            },
+            {
+              "ex": "trizeps-ueberkopf",
+              "name": "Trizeps Überkopf",
+              "target": "3 × 8–10"
+            },
+            {
+              "ex": "woodchopper",
+              "name": "Holzhacker Kabel diagonal",
+              "target": "3 × 10/Seite"
+            }
+          ]
+        },
+        {
+          "id": "K2",
+          "title": "Kraft 2",
+          "name": "",
+          "gym": true,
+          "block": [
+            {
+              "ex": "scapula-pullup",
+              "name": "Scapula-Klimmzug (alt. Straight-Arm Pulldown)",
+              "target": "3 × 8–10, Arme gestreckt, Schultern runterziehen, oben 2 s halten"
+            },
+            {
+              "ex": "y-raise",
+              "name": "Y-Raise Bauchlage/Schrägbank",
+              "target": "3 × 10–12 leicht, Schulterblatt unten/hinten"
+            }
+          ],
+          "items": [
+            {
+              "ex": "seitsprung-rw",
+              "name": "Seitsprung Richtungswechsel",
+              "target": "3 × 4/Seite"
+            },
+            {
+              "ex": "kreuzheben",
+              "target": "3 × 3–5"
+            },
+            {
+              "ex": "medball-ueberkopf",
+              "name": "Medball Überkopf einarmig",
+              "target": "4 × 5"
+            },
+            {
+              "ex": "medball-rotation",
+              "name": "Medball Rotation",
+              "target": "3 × 6/Seite"
+            },
+            {
+              "ex": "klimmzug",
+              "name": "Klimmzug",
+              "target": "3 × 6–8"
+            },
+            {
+              "ex": "hipthrust",
+              "target": "3 × 8"
+            },
+            {
+              "ex": "facepulls",
+              "target": "3 × 15"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "P6",
+      "name": "Turnierprep",
+      "weeks": [
+        20,
+        21,
+        22
+      ],
+      "dl": null,
+      "goal": "Kraft erhalten, Matchhärte aufbauen, frisch ins Turnier",
+      "details": [
+        [
+          "Woche",
+          "Mo Kraft · Di Tennis · Mi Kraft · Do Tennis · Sa Match"
+        ],
+        [
+          "Matches",
+          "W20 1 Satz · W21 2 Sätze · W22 Taper"
+        ]
+      ],
+      "check": [
+        "2 Wo volle Aufschläge ok",
+        "2-Satz-Match ok",
+        "Ellb ≤1/10"
+      ],
+      "weekExtra": "Aufschläge/Folgetag",
+      "routineNotes": [
+        "Schulterblatt-Block zum 3. Mal: Fr morgens mit Band"
+      ],
+      "units": [
+        {
+          "id": "E1",
+          "title": "Erhalt 1",
+          "name": "",
+          "gym": true,
+          "block": [
+            {
+              "ex": "scapula-pullup",
+              "name": "Scapula-Klimmzug (alt. Straight-Arm Pulldown)",
+              "target": "3 × 8–10, Arme gestreckt, Schultern runterziehen, oben 2 s halten"
+            },
+            {
+              "ex": "y-raise",
+              "name": "Y-Raise Bauchlage/Schrägbank",
+              "target": "3 × 10–12 leicht, Schulterblatt unten/hinten"
+            }
+          ],
+          "items": [
+            {
+              "ex": "sprungkniebeuge",
+              "target": "3 × 4"
+            },
+            {
+              "ex": "kniebeuge",
+              "target": "2–3 × 3"
+            },
+            {
+              "ex": "rudern",
+              "target": "2 × 8"
+            },
+            {
+              "ex": "trizeps-ueberkopf",
+              "name": "Trizeps Überkopf",
+              "target": "2 × 10"
+            },
+            {
+              "ex": "woodchopper",
+              "name": "Holzhacker Kabel diagonal",
+              "target": "2 × 10/Seite"
+            }
+          ]
+        },
+        {
+          "id": "E2",
+          "title": "Erhalt 2",
+          "name": "",
+          "gym": true,
+          "block": [
+            {
+              "ex": "scapula-pullup",
+              "name": "Scapula-Klimmzug (alt. Straight-Arm Pulldown)",
+              "target": "3 × 8–10, Arme gestreckt, Schultern runterziehen, oben 2 s halten"
+            },
+            {
+              "ex": "y-raise",
+              "name": "Y-Raise Bauchlage/Schrägbank",
+              "target": "3 × 10–12 leicht, Schulterblatt unten/hinten"
+            }
+          ],
+          "items": [
+            {
+              "ex": "skater",
+              "id": "skater-reaktiv",
+              "name": "Skater reaktiv",
+              "target": "2 × 4/Seite"
+            },
+            {
+              "ex": "kreuzheben",
+              "target": "2–3 × 3"
+            },
+            {
+              "ex": "medball-ueberkopf",
+              "name": "Medball Überkopf einarmig",
+              "target": "3 × 5"
+            },
+            {
+              "ex": "klimmzug",
+              "name": "Klimmzug",
+              "target": "2 × 6"
+            },
+            {
+              "ex": "facepulls",
+              "target": "2 × 15"
+            },
+            {
+              "ex": "seitstuetz",
+              "name": "Seitstütz",
+              "target": "2 × 30 s"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASES, weekOf, weekStart, phaseOfWeek, exKey, results, lastResult, historyOf, parseResult, resultText, exerciseList } from '../js/strength-plan.js';
+import { loadPlan } from './plan-fixture.mjs';
+
+loadPlan();
 
 test('Kraft: Wochen passen zu den Daten im Plan', () => {
   assert.equal(weekOf(new Date(2026, 9, 26)), 5); // P2 W5 26.10.
@@ -27,9 +30,8 @@ test('Kraft: Phasen lückenlos, Einheiten ohne Wochentag, Übungen je Einheit ei
   for (const p of PHASES.slice(1)) for (const u of p.units) assert.equal(!!u.block, u.gym, `${p.id} ${u.title}`);
 });
 
-test('Kraft: keine eigenen Werte im Code, ohne Einträge gibt es keine Ergebnisse', () => {
+test('Kraft: ohne Einträge gibt es keine Ergebnisse', () => {
   assert.deepEqual(results(new Map()), []);
-  for (const p of PHASES) for (const u of p.units) for (const it of [...u.items, ...(u.block ?? [])]) assert.equal(it.seed, undefined, it.id);
 });
 
 test('Kraft: "Zuletzt" kommt über Phasen hinweg aus P1, auch wenn die Übung anders heißt', () => {
@@ -129,3 +131,4 @@ test('Physio-Tracker: Tage und Serien', () => {
   const full = (x) => days.get(`${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`) === 2;
   assert.deepEqual(streaks(full, d(10, 7), d(9, 28)), { current: 2, best: 3 });
 });
+

@@ -7,7 +7,7 @@ const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const APP_LABEL = { shuffle: '5-10-5 mit Kamera', spider: 'Spider mit Kamera', brake: 'Stopp-Drill mit Kamera', decoy: 'Reaktionsdrill mit Kamera' };
 
-/** Wo die Übung im Wintertraining vorkommt (inkl. Varianten über item.lib), z. B. "P2 A, P3 A". */
+/** Wo die Übung im Trainingsplan vorkommt (inkl. Varianten über item.lib), z. B. "P2 A, P3 A". */
 function usage(id) {
   const out = [];
   for (const p of PHASES)
@@ -45,7 +45,7 @@ export function initLibrary({ onRun }) {
                   <summary><span class="lib-name">${esc(x.name)}</span><span class="muted lib-equip">${esc(x.equip)}${used.length ? ' · im Plan' : ''}</span></summary>
                   <div class="lib-body">
                     ${exerciseDetail(x)}
-                    ${used.length ? `<p class="muted lib-used">Im Wintertraining: ${esc(used.join(', '))}</p>` : ''}
+                    ${used.length ? `<p class="muted lib-used">Im Plan: ${esc(used.join(', '))}</p>` : ''}
                     ${x.app ? `<button type="button" class="btn small" data-run="${x.app}">${APP_LABEL[x.app]}</button>` : ''}
                   </div>
                 </details>`;

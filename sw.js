@@ -1,5 +1,5 @@
 // Service Worker: App-Dateien und Erkennungsmodell werden gecacht, danach läuft alles offline.
-const VERSION = 'v25';
+const VERSION = 'v27';
 const APP_CACHE = `app-${VERSION}`;
 const LIB_CACHE = 'libs-mediapipe-0.10.21';
 
@@ -32,6 +32,8 @@ const APP_FILES = [
   './js/library.js',
   './js/library-ui.js',
   './js/util.js',
+  './plans/wintertraining-26-27.json',
+  './plans/wintertraining-26-27-alt.json',
 ];
 
 self.addEventListener('install', (e) => {

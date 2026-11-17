@@ -45,7 +45,7 @@ function show(name, opts = {}) {
   document.querySelectorAll('#tabbar button').forEach((b) => b.classList.toggle('on', b.dataset.go === name));
   if (name === 'home') refreshHome();
   if (name === 'strength') strength.render(opts);
-  if (name === 'library') library.render();
+  if (name === 'library') strength.ready().then(() => library.render()); // "Im Plan" braucht den geladenen Plan
   if (name === 'history') renderHistory();
   if (name === 'settings') refreshSettings();
   window.scrollTo(0, 0);

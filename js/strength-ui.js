@@ -2,11 +2,12 @@
 // Workouts: Phase → Woche → Einheit, je Übung Wert und Notiz. Physio & Dehnen: Tagesliste mit Wochentagen.
 
 import {
-  PHASES, WARMUP, COOLDOWN, ROUTINE, ROUTINE_NOTES, ROUTINE_PHASE, INFO,
+  PHASES, WARMUP, COOLDOWN, ROUTINE, ROUTINE_NOTES, ROUTINE_PHASE, INFO, PLAN, PLAN_NAME, PLAN_ID, LAST_WEEK, setPlan, validatePlan,
   weekOf, weekStart, fmtDate, phaseOfWeek, isoDay,
   exKey, weekKey, checkKey, dayKey, results, lastResult, historyOf, resultText, parseResult, exerciseList,
   swapKey, swapAt, addSwap, applySwap, occurrencesOf, swapCandidates,
   sessionsOf, weeksOf, physioDays, streaks, dateKey,
+  exportPlan, planConflicts, buildImport, slotSummary, normHist, cleanHist,
 } from './strength-plan.js';
 import { LIB, libOf, catLabel, searchLibrary } from './library.js';
 import { exerciseDetail } from './library-ui.js';
@@ -16,7 +17,9 @@ const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const DAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const ELLB_OK = 3; // Ellb-Ampel: Schmerz ≤3/10 ok
-const PHYSIO = ROUTINE[0].items.map((it) => it.id); // tägliche Physio für den Habit-Tracker
+// Vorlagen im Repo (ohne eigene Werte): der aktuelle Plan und der bisher fest eingebaute für bestehende Daten
+const TEMPLATE = 'plans/wintertraining-26-27.json';
+const LEGACY = 'plans/wintertraining-26-27-alt.json';
 
 // Start-Buttons der App-Drills im Sprint-Block
 const APP_LABEL = { shuffle: '5-10-5 mit Kamera', spider: 'Spider mit Kamera', brake: 'Stopp-Drill mit Kamera', decoy: 'Reaktionsdrill mit Kamera' };
@@ -26,15 +29,17 @@ export function initStrength({ store, cloud, ex, onRun }) {
   const rows = new Map();
   // Heute und aktuelle Woche: bei jedem Zeichnen neu, die App bleibt oft tagelang offen
   let now = new Date();
-  let curWeek = Math.min(22, Math.max(1, weekOf(now)));
+  let curWeek = 1;
   const refreshToday = () => {
     now = new Date();
-    curWeek = Math.min(22, Math.max(1, weekOf(now)));
+    curWeek = Math.min(LAST_WEEK, Math.max(1, weekOf(now)));
   };
   let view = 'workout';
-  let phase = phaseOfWeek(curWeek);
-  let week = phase.weeks.includes(curWeek) ? curWeek : phase.weeks[0];
-  let unit = phase.units[0].id;
+  let phase = null;
+  let week = 1;
+  let unit = null;
+  let PHYSIO = []; // tägliche Physio (erste Routine-Gruppe) für den Habit-Tracker
+  let planErr = '';
   let loaded = false;
   let descOpen = false; // Phasenbeschreibung aufgeklappt (bleibt beim Wechsel erhalten)
   const timers = new Map();
@@ -44,7 +49,51 @@ export function initStrength({ store, cloud, ex, onRun }) {
   async function load() {
     rows.clear();
     for (const r of await store.listStrength()) rows.set(r.id, r);
+    // Bestehende Daten ohne eigenen Plan: der bisher eingebaute Plan wird ihr Plan, damit nichts verloren geht
+    if (!rows.has(PLAN_ID) && rows.size) {
+      try {
+        await savePlan(await (await fetch(LEGACY)).json(), '2026-09-01T00:00:00.000Z');
+      } catch (e) {
+        console.warn('Plan für bestehende Daten nicht geladen', e);
+      }
+    }
+    applyPlan();
     loaded = true;
+  }
+
+  /** Gespeicherten Plan übernehmen und Ansicht darauf einstellen. */
+  function applyPlan() {
+    const doc = rows.get(PLAN_ID)?.plan ?? null;
+    if (doc !== PLAN) {
+      try {
+        setPlan(doc);
+        planErr = '';
+      } catch (e) {
+        setPlan(null);
+        planErr = e.message;
+      }
+      phase = null;
+    }
+    PHYSIO = ROUTINE[0]?.items.map((it) => it.id) ?? [];
+    $('#kr-lede').textContent = PLAN_NAME || 'Kein Trainingsplan';
+    $('#kr-info').innerHTML = INFO.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
+    $('#kr-rules').hidden = !INFO.length;
+    refreshToday();
+    if (PHASES.length && (!phase || !PHASES.includes(phase))) goToday();
+  }
+
+  function goToday() {
+    phase = phaseOfWeek(curWeek);
+    week = phase.weeks.includes(curWeek) ? curWeek : phase.weeks[0];
+    if (!phase.units.some((u) => u.id === unit)) unit = phase.units[0].id;
+  }
+
+  /** Plan speichern (sofort, nicht verzögert: danach hängt die ganze Ansicht daran). */
+  async function savePlan(doc, at = new Date().toISOString()) {
+    const r = { ...row(PLAN_ID), id: PLAN_ID, plan: doc, updated_at: at };
+    rows.set(PLAN_ID, r);
+    await store.putStrength(r);
+    cloud.scheduleSync();
   }
 
   function save(id, data) {
@@ -68,6 +117,9 @@ export function initStrength({ store, cloud, ex, onRun }) {
       .join('');
   }
 
+  /** "W5–8" oder bei Lücken "W9, 13, 14". */
+  const weeksText = (w) => (w.at(-1) - w[0] === w.length - 1 ? (w.length > 1 ? `W${w[0]}–${w.at(-1)}` : `W${w[0]}`) : `W${w.join(', ')}`);
+
   function renderPhaseHead() {
     const first = weekStart(phase.weeks[0]);
     const last = weekStart(phase.weeks[phase.weeks.length - 1]);
@@ -79,7 +131,7 @@ export function initStrength({ store, cloud, ex, onRun }) {
       })
       .join('');
     $('#kr-phase-head').innerHTML = `
-      <h2>${phase.id} ${esc(phase.name)} <span class="muted">· W${phase.weeks[0]}–${phase.weeks[phase.weeks.length - 1]} · ${fmtDate(first)}–${fmtDate(last)}</span></h2>
+      <h2>${phase.id} ${esc(phase.name)} <span class="muted">· ${weeksText(phase.weeks)} · ${fmtDate(first)}–${fmtDate(last)}</span></h2>
       <details class="kr-desc" ${descOpen ? 'open' : ''}>
         <summary>${esc(phase.goal)}</summary>
         <dl class="kr-info">${phase.details.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
@@ -389,13 +441,18 @@ export function initStrength({ store, cloud, ex, onRun }) {
    * @param {{today?: boolean}} opts today: zur aktuellen Woche springen (beim Öffnen des Tabs und beim Zurückkehren in die App)
    */
   async function render({ today = false } = {}) {
-    refreshToday();
-    if (today) {
-      phase = phaseOfWeek(curWeek);
-      week = phase.weeks.includes(curWeek) ? curWeek : phase.weeks[0];
-      if (!phase.units.some((u) => u.id === unit)) unit = phase.units[0].id;
-    }
     if (!loaded) await load();
+    refreshToday();
+    const has = PHASES.length > 0;
+    $('#kr-empty').hidden = has;
+    $('#kr-view').hidden = !has;
+    if (!has) {
+      $('#kr-workout').hidden = true;
+      $('#kr-routine').hidden = true;
+      $('#kr-empty-msg').textContent = planErr ? `Der gespeicherte Plan ist ungültig: ${planErr}` : '';
+      return;
+    }
+    if (today) goToday();
     document.querySelectorAll('#kr-view button').forEach((b) => b.classList.toggle('on', b.dataset.view === view));
     $('#kr-workout').hidden = view !== 'workout';
     $('#kr-routine').hidden = view !== 'routine';
@@ -406,7 +463,20 @@ export function initStrength({ store, cloud, ex, onRun }) {
   // toggle blubbert nicht, darum in der Capture-Phase
   $('#screen-strength').addEventListener('toggle', (e) => e.target.classList?.contains('kr-desc') && (descOpen = e.target.open), true);
 
-  $('#kr-info').innerHTML = INFO.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('');
+  // Ohne Plan: importieren oder die Vorlage übernehmen
+  $('#kr-empty-import').addEventListener('click', () => $('#kr-import').click());
+  $('#kr-empty-template').addEventListener('click', async () => {
+    try {
+      const doc = await (await fetch(TEMPLATE)).json();
+      const err = validatePlan(doc);
+      if (err.length) throw new Error(err.join(' '));
+      await savePlan(doc);
+      applyPlan();
+      render({ today: true });
+    } catch (e) {
+      $('#kr-empty-msg').textContent = `Vorlage nicht geladen: ${e.message}`;
+    }
+  });
 
   $('#screen-strength').addEventListener('click', (e) => {
     const b = e.target.closest('button');
@@ -688,21 +758,78 @@ export function initStrength({ store, cloud, ex, onRun }) {
     renderHistory();
   });
 
-  // ---------- Sichern und Importieren (eigene Werte stehen nicht im öffentlichen Code) ----------
+  // ---------- Exportieren und Importieren (eigene Werte stehen nicht im öffentlichen Code) ----------
+  // Datei (JSON): { kind: 'strength', version: 3, scope: 'plan' | 'all', plan: Plan-Dokument (Übungen mit hist), rows: [Werte] }.
+  // Importieren lassen sich auch reine Plan-Dateien (format "tennis-plan") und alte Sicherungen (nur rows).
   const ID = /^(ex|week|chk|day|swap)\|[^|]+(\|[^|]+)*$/;
   const TEXT = ['value', 'reps', 'note', 'morgen', 'ellb', 'extra', 'to', 'target'];
   const ts = (v) => Date.parse(v) || 0;
 
+  /** Rückfrage als Sheet. Ergebnis: { value, scope, rest } oder null bei Abbrechen. */
+  let askDone = null;
+  function ask({ title, text = '', options, scope = null, rest = '' }) {
+    $('#ask-title').textContent = title;
+    $('#ask-text').innerHTML = text;
+    $('#ask-scope-wrap').hidden = !scope;
+    let sc = scope?.[0].value ?? null;
+    const drawScope = () =>
+      ($('#ask-scope').innerHTML = (scope ?? []).map((s) => `<button type="button" data-scope="${s.value}" class="${s.value === sc ? 'on' : ''}">${esc(s.label)}</button>`).join(''));
+    drawScope();
+    $('#ask-scope').onclick = (e) => {
+      const b = e.target.closest('[data-scope]');
+      if (b) (sc = b.dataset.scope), drawScope();
+    };
+    $('#ask-opts').innerHTML = options
+      .map((o) => `<button type="button" class="swap-opt" data-ask="${o.value}"><b>${esc(o.label)}</b>${o.sub ? `<span class="muted">${o.sub}</span>` : ''}</button>`)
+      .join('');
+    $('#ask-rest-wrap').hidden = !rest;
+    $('#ask-rest').checked = false;
+    $('#ask-rest-label').textContent = rest;
+    $('#ask-sheet').hidden = false;
+    return new Promise((resolve) => {
+      askDone = (value) => {
+        askDone = null;
+        $('#ask-sheet').hidden = true;
+        resolve(value == null ? null : { value, scope: sc, rest: !!rest && $('#ask-rest').checked });
+      };
+    });
+  }
+  $('#ask-cancel').addEventListener('click', () => askDone?.(null));
+  $('#ask-sheet').addEventListener('click', (e) => {
+    if (e.target.id === 'ask-sheet') return askDone?.(null);
+    const b = e.target.closest('[data-ask]');
+    if (b) askDone?.(b.dataset.ask);
+  });
+  document.addEventListener('keydown', (e) => e.key === 'Escape' && askDone?.(null));
+
   $('#kr-export').addEventListener('click', async () => {
+    const a = await ask({
+      title: 'Exportieren',
+      text: 'Was soll in die Datei?',
+      options: [
+        { value: 'plan', label: 'Nur Plan', sub: 'Übungen und Vorgaben je Phase und Einheit, mit deinen Tauschen' },
+        { value: 'all', label: 'Plan und Werte', sub: 'Zusätzlich alle Einträge: Gewichte, Wdh, Notizen, Haken, Physio-Tage' },
+      ],
+    });
+    if (!a) return;
     await load();
-    const data = { app: 'reaktionstraining', kind: 'strength', version: 1, exported_at: new Date().toISOString(), rows: [...rows.values()] };
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-    a.download = `krafttraining-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    if (!PLAN) {
+      $('#kr-backup-msg').textContent = 'Es gibt noch keinen Trainingsplan zum Exportieren.';
+      return;
+    }
+    const data = {
+      app: 'reaktionstraining', kind: 'strength', version: 3, scope: a.value, exported_at: new Date().toISOString(),
+      plan: exportPlan(rows),
+      rows: a.value === 'all' ? [...rows.values()].filter((r) => r.id !== PLAN_ID && !r.id.startsWith('swap|')) : [],
+    };
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    link.download = `krafttraining-${a.value === 'all' ? 'plan-werte' : 'plan'}-${dateKey(new Date())}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 4000);
+    $('#kr-backup-msg').textContent = a.value === 'all' ? 'Plan und Werte exportiert.' : 'Plan exportiert.';
   });
 
   $('#kr-import-btn').addEventListener('click', () => $('#kr-import').click());
@@ -719,42 +846,135 @@ export function initStrength({ store, cloud, ex, onRun }) {
     }
   });
 
+  const sameValue = (a, b) => TEXT.every((k) => String(a[k] ?? '') === String(b[k] ?? '')) && !!a.done === !!b.done && JSON.stringify(a.hist ?? null) === JSON.stringify(b.hist ?? null);
+
+  /** Abschnitte einer Stelle als Text: "Kniebeuge 4 × 8–10 · W5–6<br>Frontkniebeuge 4 × 8 · W7–8". */
+  function slotText(item, hist, weeks) {
+    const parts = slotSummary(item, hist, weeks);
+    const wk = (p) => (p.from === p.until ? `W${p.from}` : `W${p.from}–${p.until}`);
+    return parts.map((p) => `${esc(p.name)}${p.target ? ` <span>${esc(p.target)}</span>` : ''}${parts.length > 1 ? ` · ${wk(p)}` : ''}`).join('<br>');
+  }
+
   async function importFile(file) {
     const msg = $('#kr-backup-msg');
+    const show = (t) => {
+      msg.textContent = t;
+      if (!$('#kr-empty').hidden) $('#kr-empty-msg').textContent = t;
+    };
     let data;
     try {
       data = JSON.parse(await file.text());
     } catch {
-      msg.textContent = 'Die Datei ist kein gültiges JSON.';
-      return;
+      return show('Die Datei ist kein gültiges JSON.');
     }
-    if (data?.kind !== 'strength' || !Array.isArray(data.rows)) {
-      msg.textContent = 'Das ist keine Krafttraining-Datei dieser App.';
-      return;
+    // Reine Plan-Datei (z. B. aus plans/) oder Export der App
+    if (data?.format === 'tennis-plan') data = { kind: 'strength', plan: data, rows: [] };
+    if (data?.kind !== 'strength' || !Array.isArray(data.rows ?? [])) return show('Das ist keine Krafttraining-Datei dieser App.');
+    const doc = data.plan && !Array.isArray(data.plan) ? data.plan : null;
+    if (doc) {
+      const err = validatePlan(doc);
+      if (err.length) return show(`Plan nicht importiert: ${err.join(' ')}`);
     }
     await load();
-    let added = 0;
-    let skipped = 0;
-    for (const raw of data.rows) {
-      if (typeof raw?.id !== 'string' || !ID.test(raw.id)) continue;
-      // Nur bekannte Felder übernehmen
+    refreshToday();
+
+    // Werte: nur bekannte Felder. Tausch-Zeilen aus alten Dateien (ohne Plan) zählen wie Werte.
+    const fresh = [];
+    const differ = [];
+    let equal = 0;
+    for (const raw of data.rows ?? []) {
+      if (typeof raw?.id !== 'string' || !ID.test(raw.id) || (doc && raw.id.startsWith('swap|'))) continue;
       const r = { id: raw.id, created_at: raw.created_at ?? new Date().toISOString(), updated_at: raw.updated_at ?? new Date().toISOString() };
       for (const k of TEXT) if (raw[k] != null) r[k] = String(raw[k]).slice(0, 200);
       if (raw.done != null) r.done = !!raw.done;
-      if (Array.isArray(raw.hist))
-        r.hist = raw.hist.slice(0, 50).map((h) => ({ from: Number(h?.from) || 1, to: String(h?.to ?? '').slice(0, 60), target: String(h?.target ?? '').slice(0, 200) }));
+      if (Array.isArray(raw.hist)) r.hist = normHist(cleanHist(raw.hist));
       const cur = rows.get(r.id);
-      if (cur && ts(cur.updated_at) >= ts(r.updated_at)) {
-        skipped++;
-        continue;
+      if (!cur) fresh.push(r);
+      else if (sameValue(cur, r)) equal++;
+      else differ.push(r);
+    }
+
+    // Rückfragen: erst die Übungen, dann die Werte. Abbrechen ändert nichts.
+    const conflicts = doc ? planConflicts(rows, doc, curWeek) : [];
+    const decisions = [];
+    let rest = null;
+    for (const [i, c] of conflicts.entries()) {
+      let a = rest;
+      if (!a) {
+        const left = conflicts.length - i - 1;
+        a = await ask({
+          title: 'Abweichende Übung',
+          text: `${conflicts.length > 1 ? `${i + 1} von ${conflicts.length} · ` : ''}<b>${esc(c.phase.id)} · ${esc(c.unit.title)}</b>: Welche Übung soll gelten?${
+            !c.future ? ' Die Abweichung liegt nur in vergangenen Wochen.' : ''}`,
+          options: [
+            { value: 'local', label: 'Hier behalten', sub: slotText(c.local, c.localHist, c.phase.weeks) },
+            { value: 'file', label: 'Aus der Datei übernehmen', sub: slotText(c.item, c.hist, c.phase.weeks) },
+          ],
+          // Wahl auch zeigen, wenn sie erst für eine der übrigen Abweichungen zählt
+          scope: (c.past && c.future) || conflicts.slice(i + 1).some((x) => x.past && x.future)
+            ? [{ value: 'future', label: `Nur zukünftige (ab W${curWeek})` }, { value: 'all', label: 'Alle Wochen' }]
+            : null,
+          rest: left ? (left > 1 ? `Für die übrigen ${left} Abweichungen genauso` : 'Für die letzte Abweichung genauso') : '',
+        });
+        if (!a) return show('Import abgebrochen, nichts geändert.');
+        if (a.rest) rest = a;
       }
+      decisions.push({ conflict: c, pick: a.value, scope: a.scope });
+    }
+
+    let overwrite = false;
+    if (differ.length) {
+      const a = await ask({
+        title: 'Werte überschreiben?',
+        text: `${differ.length} Eintr${differ.length > 1 ? 'äge sind' : 'ag ist'} hier schon anders eingetragen als in der Datei.${
+          fresh.length ? (fresh.length > 1 ? ` ${fresh.length} neue werden in jedem Fall ergänzt.` : ' 1 neuer wird in jedem Fall ergänzt.') : ''}`,
+        options: [
+          { value: 'keep', label: 'Nicht überschreiben', sub: 'Deine Werte hier bleiben, nur fehlende kommen dazu' },
+          { value: 'overwrite', label: 'Überschreiben', sub: 'Die Werte aus der Datei ersetzen die Werte hier' },
+        ],
+      });
+      if (!a) return show('Import abgebrochen, nichts geändert.');
+      overwrite = a.value === 'overwrite';
+    }
+
+    // Schreiben. Ersetzte Zeilen bekommen die aktuelle Zeit, sonst holt der Cloud-Abgleich den alten Stand zurück.
+    const nowIso = new Date().toISOString();
+    const write = [...fresh, ...(overwrite ? differ.map((r) => ({ ...r, updated_at: nowIso })) : [])];
+    const hadPlan = !!PLAN;
+    if (doc) {
+      const { plan, swaps } = buildImport(doc, decisions, curWeek);
+      const err = validatePlan(plan);
+      if (err.length) return show(`Plan nicht importiert: ${err.join(' ')}`);
+      for (const [id, hist] of swaps) {
+        const cur = rows.get(id);
+        if (JSON.stringify(normHist(cur?.hist ?? (cur?.to != null ? [{ from: 1, to: cur.to, target: cur.target }] : []))) === JSON.stringify(hist)) continue;
+        if (!cur && !hist.length) continue;
+        write.push({ ...(cur ?? {}), id, hist, to: undefined, target: undefined, created_at: cur?.created_at ?? nowIso, updated_at: nowIso });
+      }
+      await savePlan(plan);
+    }
+    for (const r of write) {
       rows.set(r.id, r);
       await store.putStrength(r);
-      added++;
     }
-    cloud.scheduleSync();
-    msg.textContent = `${added} Einträge übernommen${skipped ? `, ${skipped} übersprungen (hier schon neuer)` : ''}.`;
+    if (write.length) cloud.scheduleSync();
+    applyPlan();
+    if (!$('#screen-strength').hidden) render({ today: !hadPlan });
+
+    const parts = [];
+    if (doc) parts.push(`Plan „${PLAN_NAME}“ ${hadPlan ? 'aktualisiert' : 'übernommen'}`);
+    const fromFile = decisions.filter((d) => d.pick === 'file').length;
+    if (conflicts.length) parts.push(`${fromFile} von ${conflicts.length} abweichenden Übungen aus der Datei`);
+    const n = (k) => `${k} ${k > 1 ? 'Werte' : 'Wert'}`;
+    if (fresh.length) parts.push(`${n(fresh.length)} ergänzt`);
+    if (differ.length) parts.push(`${n(differ.length)} ${overwrite ? '' : 'nicht '}überschrieben`);
+    show(parts.length ? `${parts.join(', ')}.` : equal ? 'Die Werte sind schon auf diesem Stand.' : 'Die Datei enthält nichts zum Übernehmen.');
   }
 
-  return { render, renderHistory };
+  /** Plan geladen (z. B. für die Bibliothek), ohne zu zeichnen. */
+  const ready = async () => {
+    if (!loaded) await load();
+  };
+
+  return { render, renderHistory, ready };
 }

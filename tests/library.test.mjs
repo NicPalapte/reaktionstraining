@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EXERCISES, LIB, CATEGORIES, libOf, searchLibrary } from '../js/library.js';
-import { PHASES, WARMUP, COOLDOWN, SPRINT_WARMUP, ROUTINE, applySwap, addSwap, swapAt, swapKey, occurrencesOf, swapCandidates, exKey, results, lastResult } from '../js/strength-plan.js';
+import { PHASES, WARMUP, COOLDOWN, ROUTINE, applySwap, addSwap, swapAt, swapKey, occurrencesOf, swapCandidates, exKey, results, lastResult } from '../js/strength-plan.js';
+import { loadPlan } from './plan-fixture.mjs';
+
+loadPlan();
 
 const planItems = () => [
-  ...PHASES.flatMap((p) => p.units.flatMap((u) => [...u.items, ...(u.block ?? [])])),
-  ...WARMUP, ...COOLDOWN, ...SPRINT_WARMUP, ...ROUTINE.flatMap((g) => g.items),
+  ...PHASES.flatMap((p) => p.units.flatMap((u) => [...u.items, ...(u.block ?? []), ...(u.warmup ?? [])])),
+  ...WARMUP, ...COOLDOWN, ...ROUTINE.flatMap((g) => g.items),
 ];
 
 test('Bibliothek: eindeutige IDs, bekannte Kategorien, jede Übung hat Ausführung', () => {
@@ -19,12 +22,17 @@ test('Bibliothek: eindeutige IDs, bekannte Kategorien, jede Übung hat Ausführu
   }
 });
 
-test('Bibliothek: jede Übung aus dem Wintertraining hat einen Eintrag, neu sind Scapula Pull-up und Wood Chopper', () => {
-  for (const it of planItems()) assert.ok(libOf(it), `${it.id} fehlt in der Bibliothek`);
-  assert.ok(LIB.has('scapula-pullup') && LIB.has('woodchopper'));
-  // Nur, was im Plan vorkommt, plus die zwei neuen
-  const used = new Set(planItems().map((it) => it.lib ?? it.id));
-  assert.deepEqual(EXERCISES.filter((x) => !used.has(x.id)).map((x) => x.id).sort(), ['scapula-pullup', 'woodchopper']);
+test('Bibliothek: jede Übung der Vorlagen hat einen Eintrag, jeder Eintrag kommt in einer Vorlage vor', () => {
+  const used = new Set();
+  for (const name of ['wintertraining-26-27', 'wintertraining-26-27-alt']) {
+    loadPlan(name);
+    for (const it of planItems()) {
+      assert.ok(libOf(it), `${it.id} fehlt in der Bibliothek`);
+      used.add(it.lib ?? it.id);
+    }
+  }
+  loadPlan();
+  assert.deepEqual(EXERCISES.filter((x) => !used.has(x.id)).map((x) => x.id), []);
 });
 
 test('Bibliothek: Suche ohne Groß/Klein und Akzente, Filter nach Kategorie', () => {

@@ -75,7 +75,8 @@ js/calibration.js      freihändige Kalibrierung der Mitte
 js/pose.js             Kamera + MediaPipe Pose Landmarker
 js/storage.js          IndexedDB, CSV-Export
 js/chart.js            Verlaufsdiagramm
-js/strength-plan.js    Wintertraining 26/27 als Daten, Tauschen von Übungen
+js/strength-plan.js    Plan prüfen und laden, Tauschen, Plan-Import mit Abgleich
+plans/                 Plan-Vorlagen als JSON (ohne eigene Werte)
 js/strength-ui.js      Krafttraining-Oberfläche mit Tausch-Dialog
 js/library.js          Übungsbibliothek (Ausführung, Merkpunkte, Nutzen für Tennis)
 js/library-ui.js       Bibliothek-Tab mit Suche und Kategorien
@@ -114,15 +115,21 @@ Tabellen siehe `supabase/schema.sql`). „Alles löschen“ löscht bei angemeld
 
 ## Krafttraining
 
-- Tab **Kraft** (`js/strength-plan.js` = Plan als Daten, `js/strength-ui.js` = Oberfläche): Wintertraining 26/27 mit den Phasen
-  P1–P6. **Workouts:** Phase → Woche (DL = Deload) → Einheit (A, B, C, Sprint; ab P5 Kraft 1/2, Erhalt 1/2), bewusst ohne Wochentag.
+- **Der Plan ist kein Code**, sondern ein JSON-Dokument je Nutzer (Zeile `plan` im Store `strength`, wird mit dem Konto
+  abgeglichen). Übungen im Plan verweisen nur auf IDs der Übungsbibliothek (`ex`), optional mit eigenem Anzeigenamen, Vorgabe und
+  `id` für Varianten. Format und Felder stehen oben in `js/strength-plan.js`, Vorlagen in `plans/`. Ohne Plan zeigt der Tab
+  „Plan importieren“ und „Vorlage Wintertraining 26/27“. Bestehende Daten ohne Plan bekommen einmalig den bisher eingebauten
+  Plan (`plans/wintertraining-26-27-alt.json`).
+- Tab **Kraft** (`js/strength-ui.js`): **Workouts:** Phase → Woche (DL = Deload) → Einheit (A, B, C, Sprint; ab P5 Kraft 1/2, Erhalt 1/2), bewusst ohne Wochentag.
   Je Übung und Woche Wert, Wdh und Notiz, dazu „Zuletzt“ aus der Vorwoche und der Verlauf. Gym-Einheiten enthalten Aufwärmen
   (Tennisball, Außenrotation), Schulterblatt-Block und Dehnen danach. Pro Woche: Morgen-Routine /7, Ellbogen /10 (über 3 wird
   gewarnt), Ausdauer bzw. Aufschläge. Die Sprint-Einheit hat Aufwärmen und alle Übungen mit Vorgabe und „So geht’s“; 5-10-5, Spider, Stopp-Drill und Reaktionsdrill starten direkt von dort, die Werte der Woche lassen sich übernehmen.
 - **Physio & Dehnen:** eigene Kategorie mit Wochentagen, Abhaken pro Tag.
-- Keine eigenen Werte im Code (das Repo ist öffentlich). Einstellungen → Krafttraining: **Exportieren** sichert alle Einträge als JSON,
-  **Importieren** übernimmt eine solche Datei (pro Eintrag gewinnt die neuere Änderung). Private Dateien gehören nach `private/`
-  (in `.gitignore`). Die Kalenderwoche ergibt sich aus dem Datum (W1 = 28.09.2026).
+- Keine eigenen Werte im Code (das Repo ist öffentlich). Einstellungen → Krafttraining: **Exportieren** fragt „Nur Plan“ oder
+  „Plan und Werte“. **Importieren** nimmt solche Dateien und reine Plan-Dateien: der Plan aus der Datei ersetzt den bisherigen; wo an
+  einer Stelle eine andere Übung steht, fragt die App „hier behalten“ oder „aus der Datei“, für alle Wochen oder nur zukünftige.
+  Weichen Werte ab, fragt sie, ob überschrieben wird. Private Dateien gehören nach `private/` (in `.gitignore`). Die
+  Kalenderwoche ergibt sich aus dem Datum (W1 = `start` im Plan).
 - Gespeichert in IndexedDB (Store `strength`), mit Konto zusätzlich in Supabase: einmal `supabase/migration-3-kraft.sql` ausführen.
   „Alles löschen“ im Verlauf löscht nur die Zeiten, nicht das Krafttraining.
 - **Verlauf → Kraft:** Diagramm je Übung über die Trainingswochen (Gewicht, Wdh, bzw. Zeit/Weite), ein Punkt pro Woche, Phasengrenzen

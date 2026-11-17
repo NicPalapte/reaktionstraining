@@ -101,8 +101,18 @@
 <main id="screen-strength" class="screen" data-tab="strength" hidden>
   <header class="page-head">
     <h1>Krafttraining</h1>
-    <p class="lede">Wintertraining 26/27</p>
+    <p class="lede" id="kr-lede"></p>
   </header>
+
+  <div class="card" id="kr-empty" hidden>
+    <h2>Noch kein Trainingsplan</h2>
+    <p class="hint">Der Plan gehört zu deinem Konto. Importiere eine Plan-Datei (JSON) oder starte mit der Vorlage. Die Übungen kommen aus der Übungsbibliothek.</p>
+    <div class="row-actions">
+      <button type="button" class="btn" id="kr-empty-import">Plan importieren</button>
+      <button type="button" class="btn ghost" id="kr-empty-template">Vorlage Wintertraining 26/27</button>
+    </div>
+    <p class="hint" id="kr-empty-msg"></p>
+  </div>
 
   <div class="seg" id="kr-view" role="tablist" aria-label="Bereich">
     <button type="button" role="tab" class="on" data-view="workout">Workouts</button>
@@ -122,7 +132,7 @@
     <div id="kr-routine-body"></div>
   </section>
 
-  <details class="setup">
+  <details class="setup" id="kr-rules">
     <summary>Regeln</summary>
     <dl class="kr-info" id="kr-info"></dl>
   </details>
@@ -148,6 +158,20 @@
     <label class="kr-check" id="swap-all-wrap"><input type="checkbox" id="swap-all"><span id="swap-all-label"></span></label>
     <input type="search" class="lib-search" id="swap-q" placeholder="Übung suchen" aria-label="Übung suchen" autocomplete="off">
     <div class="swap-list" id="swap-list"></div>
+  </div>
+</div>
+
+<!-- Krafttraining exportieren/importieren: Rückfragen -->
+<div class="overlay-card sheet" id="ask-sheet" hidden>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="ask-title">
+    <div class="card-head"><h2 id="ask-title"></h2><button type="button" class="btn small ghost" id="ask-cancel">Abbrechen</button></div>
+    <p class="hint" id="ask-text"></p>
+    <div id="ask-scope-wrap" hidden>
+      <p class="kr-sub">Datei-Übung übernehmen für</p>
+      <div class="seg small" id="ask-scope"></div>
+    </div>
+    <div class="swap-list" id="ask-opts"></div>
+    <label class="kr-check" id="ask-rest-wrap" hidden><input type="checkbox" id="ask-rest"><span id="ask-rest-label"></span></label>
   </div>
 </div>
 
@@ -290,7 +314,7 @@
       <button type="button" class="btn ghost" id="kr-import-btn">Importieren</button>
       <input type="file" id="kr-import" accept="application/json,.json" hidden>
     </div>
-    <p class="hint" id="kr-backup-msg">Sichert alle Krafteinträge als Datei. Beim Importieren gewinnt pro Eintrag die neuere Änderung.</p>
+    <p class="hint" id="kr-backup-msg">Exportiert den Trainingsplan (Übungen und Tausche) als JSON-Datei, auf Wunsch mit allen Werten. Beim Import fragt die App bei abweichenden Übungen und Werten nach.</p>
   </div>
 
   <div class="card form" id="account">
