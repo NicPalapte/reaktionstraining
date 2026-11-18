@@ -18,7 +18,7 @@ function usage(id) {
 /** Ausführung, Merkpunkte und Nutzen einer Übung (auch im Krafttraining verwendet). */
 export function exerciseDetail(x) {
   return `
-    <p>${esc(x.desc)}</p>
+    ${x.desc ? `<p>${esc(x.desc)}</p>` : '<p class="muted">Eigene Übung ohne Beschreibung.</p>'}
     ${x.cues?.length ? `<ul class="lib-cues">${x.cues.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>` : ''}
     ${x.why ? `<p class="lib-why"><b>Für Tennis:</b> ${esc(x.why)}</p>` : ''}`;
 }
@@ -30,7 +30,7 @@ export function initLibrary({ onRun }) {
 
   function render() {
     $('#lib-count').textContent = `${EXERCISES.length} Übungen mit Ausführung`;
-    $('#lib-cats').innerHTML = [{ id: null, label: 'Alle' }, ...CATEGORIES]
+    $('#lib-cats').innerHTML = [{ id: null, label: 'Alle' }, ...CATEGORIES.filter((c) => EXERCISES.some((x) => x.cat === c.id))]
       .map((c) => `<button type="button" data-cat="${c.id ?? ''}" class="${c.id === cat ? 'on' : ''}">${esc(c.label)}</button>`)
       .join('');
     const hits = searchLibrary(q, cat);

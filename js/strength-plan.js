@@ -8,10 +8,12 @@
 //                units: [{ id, title, name, gym, intro?, warmup?: [Übung], items: [Übung], block?: [Übung] }] }] }
 //   Übung: { ex: Bibliotheks-ID, target?, name?, id?, from? }. Name, Kamera-Drill und Zeitmessung kommen aus der
 //   Bibliothek; name überschreibt nur die Anzeige. id trennt Varianten derselben Übung (z. B. Kontrastsprung), sonst = ex.
+//   exercises?: [{ id, name, desc, cat?, equip?, cues?, why?, time?, ph? }] eigene Übungen, die nicht in der Bibliothek
+//   stehen. desc (Ausführung) ist Pflicht. Sie gehören zum Plan des Nutzers und erscheinen solange in der Bibliothek.
 //   Einträge laufen unter Phase|Einheit|id|Woche, so passen "Zuletzt" und Verlauf über Phasen hinweg.
 // Gym-Einheiten bekommen warmup und cooldown, Sprint-Einheiten ihr eigenes warmup.
 
-import { LIB, libOf } from './library.js';
+import { LIB, libOf, BUILTIN_IDS, cleanExercise, setCustomExercises, validExId } from './library.js';
 
 export const PLAN_ID = 'plan';
 
@@ -32,8 +34,8 @@ const pairs = (v) => (Array.isArray(v) ? v.slice(0, 40).filter((p) => Array.isAr
 const texts = (v) => (Array.isArray(v) ? v.slice(0, 40).map((t) => str(t)) : []);
 
 /** Übung aus der Datei → Eintrag im Plan (mit Feldern aus der Bibliothek). */
-export function planItem(raw) {
-  const lib = LIB.get(raw.ex);
+export function planItem(raw, lookup = (id) => LIB.get(id)) {
+  const lib = lookup(raw.ex);
   const id = str(raw.id || raw.ex, 60);
   const { app, time, shuttle, ph } = lib;
   return {
@@ -53,11 +55,17 @@ export function validatePlan(doc) {
   if (!doc || typeof doc !== 'object' || doc.format !== 'tennis-plan') return ['Kein Trainingsplan (format "tennis-plan" fehlt).'];
   if (!/^\d{4}-\d{2}-\d{2}$/.test(doc.start ?? '') || Number.isNaN(Date.parse(doc.start))) err.push('start fehlt oder ist kein Datum (JJJJ-MM-TT).');
   if (!Array.isArray(doc.phases) || !doc.phases.length) return [...err, 'Der Plan hat keine Phasen.'];
+  if (doc.exercises != null && !Array.isArray(doc.exercises)) err.push('exercises: keine Liste.');
+  for (const x of doc.exercises ?? []) {
+    if (!validExId(x?.id)) err.push(`Eigene Übung "${x?.id ?? ''}": ID fehlt oder enthält "|".`);
+    else if (String(x.desc ?? '').trim().length < 20) err.push(`Eigene Übung "${x.id}": Beschreibung der Ausführung (desc) fehlt.`);
+  }
+  const known = knownIds(doc);
   const unknown = new Set();
   const items = (list, where) => {
     if (list == null) return;
     if (!Array.isArray(list)) return err.push(`${where}: keine Liste.`);
-    for (const it of list) if (!it || !LIB.has(it.ex)) unknown.add(it?.ex ?? '(leer)');
+    for (const it of list) if (!it || !known.has(it.ex)) unknown.add(it?.ex ?? '(leer)');
   };
   items(doc.warmup, 'warmup');
   items(doc.cooldown, 'cooldown');
@@ -90,13 +98,35 @@ export function validatePlan(doc) {
       if (dup.length) err.push(`${pid} ${uid}: ${[...new Set(dup)].join(', ')} doppelt (eigene id vergeben).`);
     }
   }
-  if (unknown.size) err.push(`Nicht in der Übungsbibliothek: ${[...unknown].join(', ')}.`);
+  if (unknown.size)
+    err.push(`Nicht in der Übungsbibliothek: ${[...unknown].join(', ')}. Eigene Übungen gehören mit id, name und Beschreibung (desc) unter "exercises".`);
   return err;
+}
+
+/** Eingebaute Übungen plus die eigenen aus dem Plan. */
+const ownExercises = (doc) => new Map((doc.exercises ?? []).map(cleanExercise).filter(Boolean).map((x) => [x.id, x]));
+const knownIds = (doc) => new Set([...BUILTIN_IDS, ...ownExercises(doc).keys()]);
+
+/** Alle Übungs-IDs, auf die der Plan verweist (Übungen und Tausch-Ziele in hist). */
+function referencedEx(doc) {
+  const out = new Map(); // id → Name aus dem Plan (für neu angelegte Übungen)
+  const add = (id, name) => typeof id === 'string' && id && !out.get(id) && out.set(id, name || '');
+  const items = (l) => (Array.isArray(l) ? l : []).forEach((it) => {
+    add(it?.ex, it?.name);
+    for (const h of Array.isArray(it?.hist) ? it.hist : []) if (h?.to) add(h.to, h.name);
+  });
+  items(doc.warmup);
+  items(doc.cooldown);
+  for (const g of doc.routine ?? []) items(g?.items);
+  for (const p of doc.phases ?? []) for (const u of p?.units ?? []) [u?.items, u?.block, u?.warmup].forEach(items);
+  return out;
 }
 
 /** Geprüftes Dokument in die Form für App und Hilfsfunktionen bringen (ohne Seiteneffekte). */
 export function normalizePlan(doc) {
-  const items = (l) => (Array.isArray(l) ? l.map(planItem) : []);
+  const own = ownExercises(doc);
+  const lookup = (id) => own.get(id) ?? (BUILTIN_IDS.has(id) ? LIB.get(id) : undefined);
+  const items = (l) => (Array.isArray(l) ? l.map((it) => planItem(it, lookup)) : []);
   const phases = doc.phases.map((p) => ({
     id: str(p.id, 20), name: str(p.name, 80), weeks: [...p.weeks].sort((a, b) => a - b), dl: Number(p.dl) || null,
     goal: str(p.goal), details: pairs(p.details), weekExtra: str(p.weekExtra, 80) || 'Notiz',
@@ -127,6 +157,7 @@ export function setPlan(doc) {
     const err = validatePlan(doc);
     if (err.length) throw new Error(err.join(' '));
   }
+  setCustomExercises(doc?.exercises ?? []);
   const n = doc ? normalizePlan(doc) : null;
   PLAN = doc ?? null;
   PLAN_NAME = n?.name ?? '';
@@ -475,6 +506,11 @@ export function buildImport(doc, decisions, curWeek) {
       swaps.set(key, mergeSwap(c.localHist, stages, Math.max(curWeek, c.phase.weeks[0])));
     }
   }
+  // Eigene Übungen von hier, die über behaltene Übungen oder Tausche weiter gebraucht werden, mitnehmen
+  const used = new Set([...referencedEx(plan).keys(), ...[...swaps.values()].flat().map((h) => h.to).filter(Boolean)]);
+  const have = knownIds(plan);
+  const keep = (PLAN?.exercises ?? []).filter((x) => used.has(x?.id) && !have.has(x.id));
+  if (keep.length) plan.exercises = [...(plan.exercises ?? []), ...structuredClone(keep)];
   return { plan, swaps };
 }
 

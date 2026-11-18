@@ -117,7 +117,8 @@ Tabellen siehe `supabase/schema.sql`). „Alles löschen“ löscht bei angemeld
 
 - **Der Plan ist kein Code**, sondern ein JSON-Dokument je Nutzer (Zeile `plan` im Store `strength`, wird mit dem Konto
   abgeglichen). Übungen im Plan verweisen nur auf IDs der Übungsbibliothek (`ex`), optional mit eigenem Anzeigenamen, Vorgabe und
-  `id` für Varianten. Format und Felder stehen oben in `js/strength-plan.js`, Vorlagen in `plans/`. Ohne Plan zeigt der Tab
+  `id` für Varianten. Übungen, die nicht in der Bibliothek stehen, bringt der Plan unter `exercises` mit (id, name und Pflicht-
+  Beschreibung `desc`, optional cat, equip, cues, why); sie erscheinen dann unter „Eigene Übungen“ bzw. ihrer Kategorie. Format und Felder stehen oben in `js/strength-plan.js`, Vorlagen in `plans/`. Ohne Plan zeigt der Tab
   „Plan importieren“ und „Vorlage Wintertraining 26/27“. Bestehende Daten ohne Plan bekommen einmalig den bisher eingebauten
   Plan (`plans/wintertraining-26-27-alt.json`).
 - Tab **Kraft** (`js/strength-ui.js`): **Workouts:** Phase → Woche (DL = Deload) → Einheit (A, B, C, Sprint; ab P5 Kraft 1/2, Erhalt 1/2), bewusst ohne Wochentag.

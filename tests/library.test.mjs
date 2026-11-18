@@ -32,7 +32,9 @@ test('Bibliothek: jede Übung der Vorlagen hat einen Eintrag, jeder Eintrag komm
     }
   }
   loadPlan();
-  assert.deepEqual(EXERCISES.filter((x) => !used.has(x.id)).map((x) => x.id), []);
+  // Übungen, die erst ein neuerer eigener Plan nutzt, stehen ohne Vorlage in der Bibliothek
+  const extra = ['unterarm-lockern', 'beinpendel', 'wall-slide', 'aussenrot-kabel', 'step-up', 'copenhagen', 'rad-intervall'];
+  assert.deepEqual(EXERCISES.filter((x) => !used.has(x.id) && !extra.includes(x.id)).map((x) => x.id), []);
 });
 
 test('Bibliothek: Suche ohne Groß/Klein und Akzente, Filter nach Kategorie', () => {

@@ -9,7 +9,7 @@ import {
   sessionsOf, weeksOf, physioDays, streaks, dateKey,
   exportPlan, planConflicts, buildImport, slotSummary, normHist, cleanHist,
 } from './strength-plan.js';
-import { LIB, libOf, catLabel, searchLibrary } from './library.js';
+import { LIB, libOf, catLabel, searchLibrary, setCustomExercises } from './library.js';
 import { exerciseDetail } from './library-ui.js';
 import { drawProgress } from './chart.js';
 
@@ -843,6 +843,7 @@ export function initStrength({ store, cloud, ex, onRun }) {
       await importFile(file);
     } finally {
       importing = false;
+      setCustomExercises(PLAN?.exercises ?? []); // eigene Übungen wieder genau die des gespeicherten Plans
     }
   });
 
@@ -877,6 +878,8 @@ export function initStrength({ store, cloud, ex, onRun }) {
     }
     await load();
     refreshToday();
+    // Beim Vergleichen sind die eigenen Übungen von hier und aus der Datei bekannt
+    if (doc) setCustomExercises([...(doc.exercises ?? []), ...(PLAN?.exercises ?? [])]);
 
     // Werte: nur bekannte Felder. Tausch-Zeilen aus alten Dateien (ohne Plan) zählen wie Werte.
     const fresh = [];

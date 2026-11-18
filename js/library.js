@@ -13,13 +13,15 @@ export const CATEGORIES = [
   { id: 'arm', label: 'Ellbogen & Unterarm' },
   { id: 'rumpf', label: 'Rumpf & Rotation' },
   { id: 'speed', label: 'Schnelligkeit & Reaktion' },
+  { id: 'ausdauer', label: 'Ausdauer' },
   { id: 'warmup', label: 'Aufwärmen' },
   { id: 'mobil', label: 'Mobilität & Dehnen' },
+  { id: 'eigen', label: 'Eigene Übungen' },
 ];
 
 const e = (id, cat, name, equip, desc, cues, why, opts = {}) => ({ id, cat, name, equip, desc, cues, why, ...opts });
 
-export const EXERCISES = [
+const BUILTIN = [
   // ---------- Sprung & Plyometrie ----------
   e('boxsprung', 'sprung', 'Boxsprung', 'Box',
     'Hüftbreit vor der Box, Arme zurück, kurzer Ausholschwung und explosiv auf die Box springen. Leise und tief landen, Knie über den Füßen, 1–2 s halten. Herunter steigen, nicht springen.',
@@ -91,6 +93,14 @@ export const EXERCISES = [
     'Rückenlage, ein Fuß nah am Gesäß, das andere Bein gestreckt in der Luft. Über die Ferse die Hüfte strecken, bis Schulter, Hüfte und Knie eine Linie bilden, oben 1 s halten. Langsam ablassen.',
     ['Becken bleibt waagerecht', 'Druck über die Ferse', 'Kein Hohlkreuz oben'],
     'Gesäßkraft je Bein ohne Geräte, gut für unterwegs und gegen seitliche Hüftschwäche beim Abdruck.'),
+  e('step-up', 'beine', 'Step-up hoch', 'Box oder Bank (Kniehöhe), Weste oder Langhantel',
+    'Einen Fuß komplett auf die Box stellen, Oberkörper leicht nach vorne. Nur über das obere Bein hochdrücken, bis du gestreckt oben stehst, das hintere Bein hilft nicht mit. Langsam mit demselben Bein wieder absenken, erst alle Wiederholungen einer Seite, dann wechseln.',
+    ['Druck über die ganze Fußsohle oben', 'Knie folgt den Zehen, nicht nach innen', 'Hinteres Bein nicht abstoßen', 'Langsam runter (2–3 s)'],
+    'Einbeinige Beinkraft mit wenig Last für den Rücken, überträgt sich auf Antritt und Ausfallschritt zum Ball.'),
+  e('copenhagen', 'beine', 'Copenhagen Plank', 'Bank',
+    'Seitstütz auf dem Unterarm, das obere Bein liegt mit der Innenseite des Knies (leichter) oder des Knöchels (schwerer) auf der Bank, das untere Bein hängt frei oder zieht zur Bank. Hüfte anheben, bis der Körper eine gerade Linie bildet, und halten.',
+    ['Hüfte nicht absacken', 'Körper in einer Linie', 'Anfangs am Knie auflegen, später am Knöchel', 'Ruhig atmen'],
+    'Kräftigt die Adduktoren (Innenseite Oberschenkel), senkt Leistenverletzungen bei Richtungswechseln und seitlichem Abfangen.'),
   e('einbein-kh', 'beine', 'Einbeiniges Kreuzheben', 'Kurzhantel',
     'Auf einem Bein stehen, Oberkörper nach vorne neigen und das freie Bein gestreckt nach hinten führen, bis der Körper fast waagerecht ist. Kontrolliert aufrichten.',
     ['Becken bleibt parallel zum Boden', 'Standknie leicht gebeugt', 'Langsam'],
@@ -131,6 +141,14 @@ export const EXERCISES = [
     'Mit gestreckten Armen hängen. Ohne die Ellbogen zu beugen nur die Schulterblätter nach unten und zusammen ziehen, sodass der Körper ein paar Zentimeter hochkommt. Kurz halten und langsam wieder in den Hang.',
     ['Arme bleiben gestreckt', 'Schultern weg von den Ohren', 'Langsam zurück in den Hang'],
     'Schulterblatt-Kontrolle im Überkopfbereich, Vorbereitung auf Klimmzüge und gesunde Schulter beim Aufschlag.'),
+  e('aussenrot-kabel', 'schulter', 'Außenrotation am Kabel einarmig', 'Kabel oder Band',
+    'Seitlich zum Kabel stehen, Griff in der äußeren Hand. Ellbogen 90° gebeugt und fest am Körper (kleines Handtuch zwischen Ellbogen und Rumpf hilft). Unterarm langsam nach außen drehen, kurz halten, langsam zurück zur Bauchmitte.',
+    ['Ellbogen bleibt am Körper', 'Nur der Unterarm dreht, Schulter bleibt unten', 'Leichtes Gewicht, 2 s zurück'],
+    'Kräftigt die Außenrotatoren, die den Arm nach Aufschlag und Vorhand abbremsen, schützt Schulter und Ellbogen.'),
+  e('wall-slide', 'schulter', 'Wall Slides', 'Wand',
+    'Rücken, Hinterkopf und Gesäß an der Wand, Füße eine Fußlänge davor. Arme in U-Form an die Wand, Unterarme und Handrücken möglichst an der Wand. Arme langsam nach oben schieben, ohne dass Rücken oder Arme die Wand verlassen, dann die Schulterblätter aktiv nach unten ziehen und zurück in die U-Form.',
+    ['Unterer Rücken bleibt an der Wand', 'Schulterblätter nach unten, nicht zu den Ohren', 'Nur so weit hoch, wie der Kontakt bleibt', 'Langsam, ohne Last'],
+    'Schulterblatt-Kontrolle und Beweglichkeit über Kopf, Grundlage für einen schmerzfreien Aufschlag.'),
   e('aussenrot', 'schulter', 'Außenrotation mit Band', 'Band',
     'Ellbogen am Körper, 90° gebeugt, Band in beiden Händen. Unterarme nach außen drehen, Schulterblätter leicht zusammen, langsam zurück.',
     ['Ellbogen bleiben am Körper', 'Langsam zurück', 'Leichter Widerstand'],
@@ -163,6 +181,10 @@ export const EXERCISES = [
     'Belastbarer Unterarm gegen Tennisellbogen und für einen stabilen Griff.'),
 
   // ---------- Rumpf & Rotation ----------
+  e('beinpendel', 'rumpf', 'Liegende Beinpendel (Scheibenwischer)', 'ohne',
+    'Rückenlage, Arme seitlich ausgestreckt auf dem Boden. Hüfte und Knie 90° gebeugt, Knie zusammen. Beine langsam zu einer Seite kippen, bis sie knapp über dem Boden sind, dann aus dem Bauch zurück zur Mitte und zur anderen Seite. Schwerer mit gestreckten Beinen.',
+    ['Schultern bleiben am Boden', 'Langsam und kontrolliert, kein Schwung', 'Nur so weit kippen, wie die Schulter liegen bleibt'],
+    'Rotationskontrolle aus dem Rumpf ohne Belastung für den Arm, gut wenn der Arm geschont werden muss.'),
   e('pallof', 'rumpf', 'Pallof Press', 'Kabel oder Band',
     'Seitlich zum Kabel stehen, Griff vor der Brust. Arme gerade nach vorne drücken und 2 s halten, ohne dass sich der Oberkörper zum Kabel dreht.',
     ['Hüfte und Schultern bleiben gerade', 'Bauch fest', 'Langsam'],
@@ -214,6 +236,12 @@ export const EXERCISES = [
     ['Kurzer Kontakt', 'Aufrecht', 'Kurze Serien'],
     'Fußgelenk-Steifigkeit und Rhythmus für schnelle Beinarbeit.'),
 
+  // ---------- Ausdauer ----------
+  e('rad-intervall', 'ausdauer', 'Rad-Intervalle', 'Ergometer oder Spinningrad',
+    '10 min locker einfahren. Dann im Wechsel 1 min zügig (deutlich schneller, Atmung schwer, Sprechen nur in kurzen Worten) und 1 min locker kurbeln. Die zügigen Minuten sollen alle gleich stark sein. 5 min locker ausfahren.',
+    ['Zügig = ca. 8 von 10 Anstrengung, nicht maximal', 'Gleichmäßiges Tempo in jedem Intervall', 'Abbrechen, wenn die Leistung deutlich nachlässt'],
+    'Belastet Herz und Kreislauf wie ein Ballwechsel mit Pausen, ohne Stöße für Beine und Arm.'),
+
   // ---------- Aufwärmen ----------
   e('sp-einlaufen', 'warmup', 'Einlaufen locker', 'ohne',
     'Lockeres Laufen, gerne mit Seitgalopp und Rückwärtslaufen, bis du warm bist.',
@@ -241,6 +269,10 @@ export const EXERCISES = [
     'Unterarm am Türrahmen, Ellbogen auf Schulterhöhe, mit einem Schritt nach vorne die Brust dehnen.',
     ['Schulter nicht nach vorne schieben', 'Ruhig atmen'],
     'Gegen eine nach vorne gezogene Schulterhaltung.'),
+  e('unterarm-lockern', 'mobil', 'Unterarm lockern', 'Tennisball oder Hand',
+    'Unterarm auf den Tisch oder Oberschenkel legen. Mit dem Tennisball oder dem Daumen langsam über die Muskelbäuche der Unterarm-Ober- und -Unterseite rollen bzw. drücken. Auf festen Punkten 10–20 s bleiben, dabei die Hand öffnen und schließen.',
+    ['Nur auf Muskeln, nicht auf Ellbogen oder Knochen', 'Druck so, dass es angenehm bleibt', 'Ruhig atmen'],
+    'Lockert die Unterarmmuskeln, die beim Griff und Schlag ständig arbeiten, und entlastet einen gereizten Ellbogen.'),
   e('unterarm-dehnen', 'mobil', 'Unterarm dehnen', 'ohne',
     'Arm gestreckt nach vorne, mit der anderen Hand das Handgelenk erst nach unten (Strecker), dann nach oben (Beuger) ziehen.',
     ['Arm gestreckt', 'Sanft'],
@@ -263,7 +295,41 @@ export const EXERCISES = [
     'Mobilität von Hüfte und Sprunggelenk für tiefe Positionen am Platz.'),
 ];
 
+// Eigene Übungen kommen mit dem Plan (plan.exercises) und stehen dann wie eingebaute in der Bibliothek.
+// LIB bleibt dieselbe Map (andere Module halten sie), EXERCISES ist ein Live-Binding.
+export const BUILTIN_IDS = new Set(BUILTIN.map((x) => x.id));
+export let EXERCISES = [...BUILTIN];
 export const LIB = new Map(EXERCISES.map((x) => [x.id, x]));
+
+const txt = (v, max) => (v == null ? '' : String(v).slice(0, max));
+/** Gültige ID für eine eigene Übung: kein "|" (trennt die Schlüssel der Einträge), nicht leer. */
+export const validExId = (id) => typeof id === 'string' && /^[^|]{1,60}$/.test(id.trim()) && id === id.trim();
+
+/** Eigene Übung aus einer Datei: nur bekannte Felder, ohne Kamera-Drill (die gibt es nur eingebaut). */
+export function cleanExercise(raw) {
+  if (!raw || !validExId(raw.id) || BUILTIN_IDS.has(raw.id)) return null;
+  const cat = CATEGORIES.some((c) => c.id === raw.cat) ? raw.cat : 'eigen';
+  return {
+    id: raw.id, cat, name: txt(raw.name, 120).trim() || raw.id, equip: txt(raw.equip, 120), desc: txt(raw.desc, 2000),
+    cues: Array.isArray(raw.cues) ? raw.cues.slice(0, 10).map((c) => txt(c, 200)) : [], why: txt(raw.why, 600),
+    ...(raw.time ? { time: true } : {}), ...(raw.ph ? { ph: txt(raw.ph, 40) } : {}), custom: true,
+  };
+}
+
+/** Eigene Übungen setzen (ersetzt die bisherigen). @returns {object[]} übernommene Übungen */
+export function setCustomExercises(list = []) {
+  for (const [id, x] of LIB) if (x.custom) LIB.delete(id);
+  const custom = [];
+  for (const raw of list) {
+    const x = cleanExercise(raw);
+    if (x && !LIB.has(x.id)) {
+      LIB.set(x.id, x);
+      custom.push(x);
+    }
+  }
+  EXERCISES = [...BUILTIN, ...custom];
+  return custom;
+}
 export const catLabel = (id) => CATEGORIES.find((c) => c.id === id)?.label ?? id;
 
 /** Bibliothekseintrag zu einem Plan-Eintrag (item.lib verweist auf eine andere ID, z. B. Kontrast-Varianten). */

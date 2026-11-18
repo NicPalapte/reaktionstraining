@@ -89,3 +89,36 @@ test('Plan: ohne Plan keine Phasen', () => {
   assert.equal(phaseOfWeek(5), null);
   loadPlan();
 });
+
+test('Plan: eigene Übungen mit Beschreibung kommen mit dem Plan in die Bibliothek', async () => {
+  const lib = await import('../js/library.js'); // Namensraum: EXERCISES ist ein Live-Binding
+  const { LIB, searchLibrary } = lib;
+  const doc = readPlan('wintertraining-26-27');
+  doc.phases[1].units[0].items.push({ ex: 'farmers-walk', target: '3 × 30 m' });
+  assert.ok(validatePlan(doc).some((e) => /farmers-walk/.test(e) && /exercises/.test(e)));
+  doc.exercises = [{ id: 'farmers-walk', name: 'Farmer’s Walk' }];
+  assert.ok(validatePlan(doc).some((e) => /Beschreibung/.test(e)), 'ohne Ausführung abgelehnt');
+  doc.exercises[0].desc = 'Zwei schwere Kurzhanteln seitlich tragen, aufrecht gehen, Schultern unten, kurze schnelle Schritte.';
+  doc.exercises[0].cues = ['Aufrecht', 'Schultern unten'];
+  assert.deepEqual(validatePlan(doc), []);
+  setPlan(doc);
+  assert.equal(LIB.get('farmers-walk').cat, 'eigen');
+  assert.ok(lib.EXERCISES.some((x) => x.id === 'farmers-walk'));
+  assert.ok(searchLibrary('farmer').length === 1);
+  assert.equal(unitOf('P2', 'A').items.at(-1).name, 'Farmer’s Walk');
+  // Eingebaute IDs lassen sich nicht überschreiben
+  setPlan({ ...doc, exercises: [...doc.exercises, { id: 'kniebeuge', name: 'X', desc: 'x'.repeat(30) }] });
+  assert.equal(LIB.get('kniebeuge').name, 'Kniebeuge');
+
+  // Neuer Plan ohne die Übung: behaltene Stelle nimmt die eigene Übung mit
+  const next = readPlan('wintertraining-26-27');
+  next.phases[1].units[0].items.push({ ex: 'kniebeuge', id: 'kb2', target: '1 × 5' });
+  const c = planConflicts(new Map(), next, 6).find((x) => x.local.id === 'farmers-walk');
+  assert.ok(c);
+  const { plan } = buildImport(next, [{ conflict: c, pick: 'local', scope: null }], 6);
+  assert.deepEqual(plan.exercises.map((x) => x.id), ['farmers-walk']);
+  assert.deepEqual(validatePlan(plan), []);
+  // Ohne eigene Übungen verschwindet sie wieder aus der Bibliothek
+  loadPlan();
+  assert.equal(LIB.has('farmers-walk'), false);
+});
